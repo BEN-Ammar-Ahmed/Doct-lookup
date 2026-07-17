@@ -13,7 +13,7 @@ A mobile-first website where a person picks their health insurance, enters a ZIP
 
 ## Stack
 
-- Next.js (App Router), JavaScript/TypeScript, deployed-ready structure.
+- Next.js (App Router) with TypeScript.
 - Leaflet + OpenStreetMap tiles for the map (free, no API key).
 - No database — live API + in-code insurance mapping + bundled ZIP-code coordinate table.
 
