@@ -31,7 +31,6 @@ export default function ResultsMap({
 }) {
   const mapDiv = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Doctor | null>(null);
-  const selectedRef = useRef<Doctor | null>(null);
 
   useEffect(() => {
     if (!mapDiv.current) return;
@@ -45,27 +44,21 @@ export default function ResultsMap({
       maxZoom: 19,
     }).addTo(map);
 
+    const pinned = doctors.filter((d) => d.lat !== null && d.lng !== null);
     const markers: L.Marker[] = [];
-    for (const d of doctors) {
-      if (d.lat === null || d.lng === null) continue;
-      const marker = L.marker([d.lat, d.lng], {
+    pinned.forEach((d, di) => {
+      const marker = L.marker([d.lat!, d.lng!], {
         icon: pinIcon("#0891B2", false),
         title: d.name,
       }).addTo(map);
       marker.on("click", () => {
         setSelected(d);
-        selectedRef.current = d;
-        markers.forEach((m, i) =>
-          m.setIcon(
-            pinIcon(
-              doctors[i] === d ? "#059669" : "#0891B2",
-              doctors[i] === d
-            )
-          )
+        markers.forEach((m, mi) =>
+          m.setIcon(pinIcon(mi === di ? "#059669" : "#0891B2", mi === di))
         );
       });
       markers.push(marker);
-    }
+    });
     if (markers.length) {
       map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
     }
