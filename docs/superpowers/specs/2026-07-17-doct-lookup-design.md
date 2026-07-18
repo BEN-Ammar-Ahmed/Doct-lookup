@@ -27,7 +27,8 @@ A mobile-first website where a person picks their health insurance, enters a ZIP
 
 ## Screens
 
-1. **Search (home)** — two tabs: "By insurance" (insurance picker, ZIP input, optional specialty) and "By doctor name" (name + optional state). Single big green CTA. Demo disclaimer in footer.
+0. **Home (landing)** — added 2026-07-18 at owner's request: the site must not open directly on the search form. Minimal single-column landing: hero headline, one-line description, primary CTA to `/search`, sample doctor card, three "How it works" steps (pick insurance → enter ZIP → call with confidence), second CTA, disclaimer footer.
+1. **Search (`/search`)** — two tabs: "By insurance" (insurance picker, ZIP input, optional specialty) and "By doctor name" (name + optional state). Single big green CTA. Demo disclaimer in footer.
 2. **Results** — List/Map toggle. List: doctor cards (avatar initials, name, specialty, distance, address, green "Accepts X" badge); nearby doctors who don't accept the plan appear dimmed below matches. Map: Leaflet map with pins for matches; tapping a pin shows a mini card. Search summary pill at top returns to search.
 3. **Doctor profile** — name, specialty, NPI, address, tap-to-call phone button, full accepted-insurance chips (user's plan highlighted green, not-accepted shown in red section), small map of the office location.
 4. Reverse lookup reuses Results and Profile screens.

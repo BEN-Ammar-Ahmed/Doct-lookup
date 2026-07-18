@@ -99,7 +99,7 @@ export default function ResultsClient() {
         }}
       >
         <Link
-          href="/"
+          href="/search"
           aria-label="Back to search"
           style={{
             display: "flex",
@@ -112,7 +112,7 @@ export default function ResultsClient() {
           <ChevronLeftIcon size={22} />
         </Link>
         <Link
-          href="/"
+          href="/search"
           className="fld"
           style={{
             minHeight: 42,
