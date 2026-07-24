@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Doctor } from "@/lib/npi";
 import { insurerName } from "@/lib/insurers";
 import { initialsOf } from "@/lib/options";
-import { CheckIcon, ChevronRightIcon } from "./Icons";
+import { CheckIcon, ChevronRightIcon, XIcon } from "./Icons";
 
 export default function DoctorCard({
   doctor,
@@ -48,11 +48,18 @@ export default function DoctorCard({
         >
           {meta}
         </p>
-        {accepts && (
+        {accepts ? (
           <span className="badge-ok">
             <CheckIcon size={13} />
             Accepts {insurerName(insurance)}
           </span>
+        ) : (
+          insurance && (
+            <span className="badge-no">
+              <XIcon size={13} />
+              Not in network
+            </span>
+          )
         )}
       </div>
       <ChevronRightIcon size={18} className="muted" />

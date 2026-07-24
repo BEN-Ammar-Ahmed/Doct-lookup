@@ -33,26 +33,49 @@ export default function ResultsClient() {
   const [error, setError] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
   const [specFilter, setSpecFilter] = useState("");
+  const [areaOverride, setAreaOverride] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
-  const load = useCallback(() => {
-    setError(false);
-    setData(null);
-    const q = new URLSearchParams();
-    if (zip) q.set("zip", zip);
-    if (specialty) q.set("specialty", specialty);
-    if (insurance) q.set("insurance", insurance);
-    if (name) q.set("name", name);
-    if (state) q.set("state", state);
-    fetch(`/api/doctors/search?${q}`)
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then(setData)
-      .catch(() => setError(true));
-  }, [zip, specialty, insurance, name, state]);
+  const load = useCallback(
+    (override?: { lat: number; lng: number }) => {
+      setError(false);
+      setData(null);
+      const q = new URLSearchParams();
+      if (override) {
+        q.set("lat", String(override.lat));
+        q.set("lng", String(override.lng));
+      } else if (zip) {
+        q.set("zip", zip);
+      }
+      if (specialty) q.set("specialty", specialty);
+      if (insurance) q.set("insurance", insurance);
+      if (name) q.set("name", name);
+      if (state) q.set("state", state);
+      fetch(`/api/doctors/search?${q}`)
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then(setData)
+        .catch(() => setError(true));
+    },
+    [zip, specialty, insurance, name, state]
+  );
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    setAreaOverride(null);
+    load();
+  }, [load]);
+
+  const handleSearchArea = useCallback(
+    (lat: number, lng: number) => {
+      setAreaOverride({ lat, lng });
+      load({ lat, lng });
+    },
+    [load]
+  );
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -86,7 +109,7 @@ export default function ResultsClient() {
 
   const summary = name
     ? `"${name}"${state ? ` · ${state}` : ""}`
-    : `${insurerName(insurance)} · ${zip}`;
+    : `${insurerName(insurance)} · ${areaOverride ? "this area" : zip}`;
 
   return (
     <main className="screen" style={{ paddingTop: 12 }}>
@@ -175,7 +198,7 @@ export default function ResultsClient() {
           <button
             type="button"
             className="btn-primary"
-            onClick={load}
+            onClick={() => load()}
             style={{ maxWidth: 200, margin: "0 auto" }}
           >
             <RefreshIcon size={16} />
@@ -271,6 +294,7 @@ export default function ResultsClient() {
                 center={data.center}
                 doctors={matches}
                 insurance={insurance}
+                onSearchArea={name ? undefined : handleSearchArea}
               />
             )
           )}

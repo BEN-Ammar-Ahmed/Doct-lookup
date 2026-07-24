@@ -33,6 +33,37 @@ export async function zipToLatLng(zip: string): Promise<LatLng | null> {
   }
 }
 
+const reverseZipCache = new Map<string, string | null>();
+
+// The NPI registry only filters by postal_code, so "search this area" (an
+// arbitrary map center) needs to resolve back to a ZIP first.
+export async function latLngToZip(lat: number, lng: number): Promise<string | null> {
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (reverseZipCache.has(key)) return reverseZipCache.get(key)!;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      {
+        signal: AbortSignal.timeout(6000),
+        cache: "no-store",
+        headers: { "User-Agent": "doct-lookup-demo (educational project)" },
+      }
+    );
+    if (!res.ok) {
+      reverseZipCache.set(key, null);
+      return null;
+    }
+    const data = await res.json();
+    const postcode: string | undefined = data.address?.postcode;
+    const zip = postcode ? postcode.slice(0, 5) : null;
+    reverseZipCache.set(key, zip);
+    return zip;
+  } catch {
+    reverseZipCache.set(key, null);
+    return null;
+  }
+}
+
 // Pins are approximate: ZIP centroid plus a stable per-doctor offset so
 // markers don't stack on one point.
 export function pinFor(npi: string, center: LatLng): LatLng {

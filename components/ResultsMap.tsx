@@ -8,7 +8,7 @@ import type { Doctor } from "@/lib/npi";
 import type { LatLng } from "@/lib/geo";
 import { insurerName } from "@/lib/insurers";
 import { initialsOf } from "@/lib/options";
-import { CheckIcon, ChevronRightIcon } from "./Icons";
+import { CheckIcon, ChevronRightIcon, RefreshIcon } from "./Icons";
 
 function pinIcon(color: string, selected: boolean) {
   const s = selected ? 38 : 30;
@@ -24,20 +24,26 @@ export default function ResultsMap({
   center,
   doctors,
   insurance,
+  onSearchArea,
 }: {
   center: LatLng;
   doctors: Doctor[];
   insurance: string;
+  onSearchArea?: (lat: number, lng: number) => void;
 }) {
   const mapDiv = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const [selected, setSelected] = useState<Doctor | null>(null);
+  const [panned, setPanned] = useState(false);
 
   useEffect(() => {
     if (!mapDiv.current) return;
+    setPanned(false);
     const map = L.map(mapDiv.current, { zoomControl: false }).setView(
       [center.lat, center.lng],
       14
     );
+    mapRef.current = map;
     L.control.zoom({ position: "bottomright" }).addTo(map);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
@@ -45,16 +51,18 @@ export default function ResultsMap({
     }).addTo(map);
 
     const pinned = doctors.filter((d) => d.lat !== null && d.lng !== null);
+    const colorFor = (d: Doctor) =>
+      insurance && d.plans.includes(insurance) ? "#0E8A5F" : "#0F6E8C";
     const markers: L.Marker[] = [];
     pinned.forEach((d, di) => {
       const marker = L.marker([d.lat!, d.lng!], {
-        icon: pinIcon("#0891B2", false),
+        icon: pinIcon(colorFor(d), false),
         title: d.name,
       }).addTo(map);
       marker.on("click", () => {
         setSelected(d);
         markers.forEach((m, mi) =>
-          m.setIcon(pinIcon(mi === di ? "#059669" : "#0891B2", mi === di))
+          m.setIcon(pinIcon(colorFor(pinned[mi]), mi === di))
         );
       });
       markers.push(marker);
@@ -62,10 +70,30 @@ export default function ResultsMap({
     if (markers.length) {
       map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
     }
-    return () => {
-      map.remove();
+
+    // Only the initial setView/fitBounds above are programmatic; any
+    // movement after the map settles means the user dragged or zoomed.
+    let ready = false;
+    map.once("moveend", () => {
+      ready = true;
+    });
+    const handleMoveStart = () => {
+      if (ready) setPanned(true);
     };
-  }, [center, doctors]);
+    map.on("movestart", handleMoveStart);
+
+    return () => {
+      map.off("movestart", handleMoveStart);
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [center, doctors, insurance]);
+
+  function handleSearchArea() {
+    if (!mapRef.current || !onSearchArea) return;
+    const c = mapRef.current.getCenter();
+    onSearchArea(c.lat, c.lng);
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -79,6 +107,30 @@ export default function ResultsMap({
           zIndex: 0,
         }}
       />
+      {panned && onSearchArea && (
+        <button
+          type="button"
+          className="chip"
+          onClick={handleSearchArea}
+          style={{
+            position: "absolute",
+            top: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "var(--primary)",
+            borderColor: "var(--primary)",
+            color: "#fff",
+            boxShadow: "0 4px 16px rgba(38, 36, 32, 0.2)",
+          }}
+        >
+          <RefreshIcon size={13} />
+          Search this area
+        </button>
+      )}
       <p
         className="muted"
         style={{ fontSize: 12, textAlign: "center", margin: "8px 0 0" }}

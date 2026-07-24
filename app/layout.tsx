@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Noto_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const figtree = Figtree({ subsets: ["latin"], variable: "--font-heading" });
-const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-body" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
 
 export const metadata: Metadata = {
   title: "Doct Lookup — find doctors who take your insurance",
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0891B2",
+  themeColor: "#0F6E8C",
 };
 
 export default function RootLayout({
@@ -23,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${figtree.variable} ${notoSans.variable}`}>
+    <html lang="en" className={inter.variable}>
       <body>
         <div className="phone-shell">{children}</div>
       </body>

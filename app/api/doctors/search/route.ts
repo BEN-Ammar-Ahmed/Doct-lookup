@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchNpi, type Doctor } from "@/lib/npi";
-import { zipToLatLng, pinFor, milesBetween, type LatLng } from "@/lib/geo";
+import {
+  zipToLatLng,
+  latLngToZip,
+  pinFor,
+  milesBetween,
+  type LatLng,
+} from "@/lib/geo";
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -9,11 +15,20 @@ export async function GET(req: NextRequest) {
   const insurance = sp.get("insurance") ?? "";
   const name = sp.get("name") ?? "";
   const state = sp.get("state") ?? "";
+  const latParam = sp.get("lat");
+  const lngParam = sp.get("lng");
+  const area =
+    latParam !== null && lngParam !== null
+      ? { lat: parseFloat(latParam), lng: parseFloat(lngParam) }
+      : null;
 
+  if (area && (Number.isNaN(area.lat) || Number.isNaN(area.lng))) {
+    return NextResponse.json({ error: "invalid_area" }, { status: 400 });
+  }
   if (zip && !/^\d{5}$/.test(zip)) {
     return NextResponse.json({ error: "invalid_zip" }, { status: 400 });
   }
-  if (!zip && !name) {
+  if (!zip && !name && !area) {
     return NextResponse.json({ error: "missing_query" }, { status: 400 });
   }
 
@@ -28,6 +43,16 @@ export async function GET(req: NextRequest) {
         lastName: `${lastName}*`,
         ...(firstName ? { firstName: `${firstName}*` } : {}),
         ...(state ? { state } : {}),
+      });
+    } else if (area) {
+      const resolvedZip = await latLngToZip(area.lat, area.lng);
+      if (!resolvedZip) {
+        return NextResponse.json({ error: "area_unresolved" }, { status: 502 });
+      }
+      center = area;
+      doctors = await searchNpi({
+        zip: resolvedZip,
+        ...(specialty ? { specialty } : {}),
       });
     } else {
       [doctors, center] = await Promise.all([
