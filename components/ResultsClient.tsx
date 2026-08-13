@@ -6,7 +6,8 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import type { Doctor } from "@/lib/npi";
 import type { LatLng } from "@/lib/geo";
-import { insurerName } from "@/lib/insurers";
+import type { CoverageDisplay } from "@/lib/coverage";
+import { buildSearchParams, type ResultsQuery } from "@/lib/searchParams";
 import DoctorCard from "./DoctorCard";
 import SkeletonCards from "./Skeleton";
 import {
@@ -19,40 +20,66 @@ import {
 
 const ResultsMap = dynamic(() => import("./ResultsMap"), { ssr: false });
 
-type ApiData = { center: LatLng | null; doctors: Doctor[] };
+type ApiDoctor = Doctor & { coverage?: CoverageDisplay };
+type ApiData = { center: LatLng | null; doctors: ApiDoctor[]; hasMore: boolean };
 
 export default function ResultsClient() {
   const sp = useSearchParams();
-  const insurance = sp.get("insurance") ?? "";
   const zip = sp.get("zip") ?? "";
   const specialty = sp.get("specialty") ?? "";
   const name = sp.get("name") ?? "";
   const state = sp.get("state") ?? "";
+  const category = (sp.get("category") ?? "none") as ResultsQuery["category"];
+  const planId = sp.get("planId") ?? "";
+  const planName = sp.get("planName") ?? "";
+  const issuerName = sp.get("issuerName") ?? "";
+  const planYear = sp.get("planYear") ?? "";
+  const insurerName = sp.get("insurerName") ?? "";
+  const hasCategory = category !== "none";
 
   const [data, setData] = useState<ApiData | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
   const [specFilter, setSpecFilter] = useState("");
-  const [areaOverride, setAreaOverride] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+  const [areaOverride, setAreaOverride] = useState<{ lat: number; lng: number } | null>(null);
+
+  const query: ResultsQuery = {
+    zip,
+    specialty,
+    name,
+    state,
+    category,
+    planId,
+    planName,
+    issuerName,
+    planYear,
+    insurerName,
+  };
+
+  const buildParams = useCallback(
+    (skip: number, override?: { lat: number; lng: number } | null) =>
+      buildSearchParams(query, { skip, override }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zip, specialty, name, state, category, planId, planName, issuerName, planYear, insurerName]
+  );
+
+  const detailQuery = useMemo(() => {
+    const q = buildSearchParams(query, {});
+    q.delete("zip");
+    q.delete("specialty");
+    q.delete("name");
+    q.delete("state");
+    const s = q.toString();
+    return s ? `?${s}` : "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, planId, planName, issuerName, planYear, insurerName]);
 
   const load = useCallback(
     (override?: { lat: number; lng: number }) => {
       setError(false);
       setData(null);
-      const q = new URLSearchParams();
-      if (override) {
-        q.set("lat", String(override.lat));
-        q.set("lng", String(override.lng));
-      } else if (zip) {
-        q.set("zip", zip);
-      }
-      if (specialty) q.set("specialty", specialty);
-      if (insurance) q.set("insurance", insurance);
-      if (name) q.set("name", name);
-      if (state) q.set("state", state);
+      const q = buildParams(0, override);
       fetch(`/api/doctors/search?${q}`)
         .then((r) => {
           if (!r.ok) throw new Error();
@@ -61,7 +88,7 @@ export default function ResultsClient() {
         .then(setData)
         .catch(() => setError(true));
     },
-    [zip, specialty, insurance, name, state]
+    [buildParams]
   );
 
   useEffect(() => {
@@ -77,22 +104,34 @@ export default function ResultsClient() {
     [load]
   );
 
+  const loadMore = useCallback(() => {
+    if (!data) return;
+    setLoadingMore(true);
+    const q = buildParams(data.doctors.length, areaOverride);
+    fetch(`/api/doctors/search?${q}`)
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((more: ApiData) => {
+        setData((prev) => (prev ? { ...more, doctors: [...prev.doctors, ...more.doctors] } : more));
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoadingMore(false));
+  }, [data, buildParams, areaOverride]);
+
   const filtered = useMemo(() => {
     if (!data) return [];
-    return specFilter
-      ? data.doctors.filter((d) => d.specialty === specFilter)
-      : data.doctors;
+    return specFilter ? data.doctors.filter((d) => d.specialty === specFilter) : data.doctors;
   }, [data, specFilter]);
 
-  const matches = useMemo(
-    () =>
-      insurance ? filtered.filter((d) => d.plans.includes(insurance)) : filtered,
-    [filtered, insurance]
+  const covered = useMemo(
+    () => (hasCategory ? filtered.filter((d) => d.coverage?.status === "covered") : []),
+    [filtered, hasCategory]
   );
-  const others = useMemo(
-    () =>
-      insurance ? filtered.filter((d) => !d.plans.includes(insurance)) : [],
-    [filtered, insurance]
+  const rest = useMemo(
+    () => (hasCategory ? filtered.filter((d) => d.coverage?.status !== "covered") : filtered),
+    [filtered, hasCategory]
   );
 
   const specChips = useMemo(() => {
@@ -107,9 +146,26 @@ export default function ResultsClient() {
       .map(([s]) => s);
   }, [data]);
 
+  const categoryLabel =
+    category === "marketplace"
+      ? planName || "ACA Marketplace plan"
+      : category === "medicare"
+        ? "Original Medicare"
+        : category === "other"
+          ? insurerName || "Other insurance"
+          : null;
+
   const summary = name
     ? `"${name}"${state ? ` · ${state}` : ""}`
-    : `${insurerName(insurance)} · ${areaOverride ? "this area" : zip}`;
+    : categoryLabel
+      ? `${categoryLabel} · ${areaOverride ? "this area" : zip}`
+      : zip;
+
+  const removeSpecialtyHref = (() => {
+    const q = buildParams(0, areaOverride);
+    q.delete("specialty");
+    return `/results?${q}`;
+  })();
 
   return (
     <main className="screen" style={{ paddingTop: 12 }}>
@@ -198,7 +254,7 @@ export default function ResultsClient() {
           <button
             type="button"
             className="btn-primary"
-            onClick={() => load()}
+            onClick={() => load(areaOverride ?? undefined)}
             style={{ maxWidth: 200, margin: "0 auto" }}
           >
             <RefreshIcon size={16} />
@@ -217,7 +273,7 @@ export default function ResultsClient() {
           </p>
           {specialty && (
             <Link
-              href={`/results?mode=insurance&insurance=${insurance}&zip=${zip}`}
+              href={removeSpecialtyHref}
               className="btn-primary"
               style={{ maxWidth: 240, margin: "0 auto" }}
             >
@@ -256,44 +312,56 @@ export default function ResultsClient() {
           {view === "list" ? (
             <>
               <p className="muted" style={{ fontSize: 13.5, margin: "4px 0 10px" }}>
-                {insurance
-                  ? `${matches.length} provider${matches.length === 1 ? "" : "s"} near you accept${matches.length === 1 ? "s" : ""} ${insurerName(insurance)}`
+                {hasCategory
+                  ? `${covered.length} provider${covered.length === 1 ? "" : "s"} near you listed as covered`
                   : `${filtered.length} provider${filtered.length === 1 ? "" : "s"} found`}
               </p>
-              {matches.map((d, i) => (
-                <DoctorCard key={d.npi} doctor={d} insurance={insurance} index={i} />
+              {covered.map((d, i) => (
+                <DoctorCard key={d.npi} doctor={d} query={detailQuery} index={i} />
               ))}
-              {others.length > 0 && (
+              {rest.length > 0 && (
                 <>
-                  <p
-                    className="muted"
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      margin: "16px 0 8px",
-                      textTransform: "none",
-                    }}
-                  >
-                    Nearby, but different insurance
-                  </p>
-                  {others.map((d, i) => (
+                  {covered.length > 0 && (
+                    <p
+                      className="muted"
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        margin: "16px 0 8px",
+                      }}
+                    >
+                      Other results near you
+                    </p>
+                  )}
+                  {rest.map((d, i) => (
                     <DoctorCard
                       key={d.npi}
                       doctor={d}
-                      insurance={insurance}
+                      query={detailQuery}
                       index={i}
-                      dimmed
+                      dimmed={covered.length > 0}
                     />
                   ))}
                 </>
+              )}
+              {data.hasMore && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  style={{ marginTop: 8, opacity: loadingMore ? 0.6 : 1 }}
+                >
+                  {loadingMore ? "Loading…" : "Load more doctors"}
+                </button>
               )}
             </>
           ) : (
             data.center && (
               <ResultsMap
                 center={data.center}
-                doctors={matches}
-                insurance={insurance}
+                doctors={filtered}
+                query={detailQuery}
                 onSearchArea={name ? undefined : handleSearchArea}
               />
             )
@@ -302,7 +370,8 @@ export default function ResultsClient() {
       )}
 
       <p className="disclaimer" style={{ marginTop: "auto" }}>
-        Demo — insurance data is illustrative
+        Provider data is from the public NPI registry. Insurance results are
+        real where a source is shown; unlabeled results aren't guesses.
       </p>
     </main>
   );

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { normalizeNpiResult } from "./npi";
-import { plansFor } from "./insurance";
 import sample from "./fixtures/npi-sample.json";
 
 describe("normalizeNpiResult", () => {
@@ -15,7 +14,7 @@ describe("normalizeNpiResult", () => {
     expect(doc!.state).toBe("IL");
     expect(doc!.zip).toBe("60614");
     expect(doc!.phone).toBe("312-649-1136");
-    expect(doc!.plans).toEqual(plansFor("1942579198"));
+    expect(doc).not.toHaveProperty("plans");
   });
 
   it("returns null for organization records", () => {

@@ -6,9 +6,12 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Doctor } from "@/lib/npi";
 import type { LatLng } from "@/lib/geo";
-import { insurerName } from "@/lib/insurers";
+import { coverageMarkerColor, type CoverageDisplay } from "@/lib/coverage";
 import { initialsOf } from "@/lib/options";
-import { CheckIcon, ChevronRightIcon, RefreshIcon } from "./Icons";
+import { ChevronRightIcon, RefreshIcon } from "./Icons";
+import { CoverageBadge } from "./CoverageBadge";
+
+type MapDoctor = Doctor & { coverage?: CoverageDisplay };
 
 function pinIcon(color: string, selected: boolean) {
   const s = selected ? 38 : 30;
@@ -23,17 +26,17 @@ function pinIcon(color: string, selected: boolean) {
 export default function ResultsMap({
   center,
   doctors,
-  insurance,
+  query,
   onSearchArea,
 }: {
   center: LatLng;
-  doctors: Doctor[];
-  insurance: string;
+  doctors: MapDoctor[];
+  query: string;
   onSearchArea?: (lat: number, lng: number) => void;
 }) {
   const mapDiv = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const [selected, setSelected] = useState<Doctor | null>(null);
+  const [selected, setSelected] = useState<MapDoctor | null>(null);
   const [panned, setPanned] = useState(false);
 
   useEffect(() => {
@@ -51,8 +54,7 @@ export default function ResultsMap({
     }).addTo(map);
 
     const pinned = doctors.filter((d) => d.lat !== null && d.lng !== null);
-    const colorFor = (d: Doctor) =>
-      insurance && d.plans.includes(insurance) ? "#0E8A5F" : "#0F6E8C";
+    const colorFor = (d: MapDoctor) => coverageMarkerColor(d.coverage?.status);
     const markers: L.Marker[] = [];
     pinned.forEach((d, di) => {
       const marker = L.marker([d.lat!, d.lng!], {
@@ -87,7 +89,7 @@ export default function ResultsMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [center, doctors, insurance]);
+  }, [center, doctors]);
 
   function handleSearchArea() {
     if (!mapRef.current || !onSearchArea) return;
@@ -131,15 +133,17 @@ export default function ResultsMap({
           Search this area
         </button>
       )}
-      <p
-        className="muted"
-        style={{ fontSize: 12, textAlign: "center", margin: "8px 0 0" }}
-      >
-        Pin locations are approximate
-      </p>
+      {doctors.some((d) => d.locationApproximate) && (
+        <p
+          className="muted"
+          style={{ fontSize: 12, textAlign: "center", margin: "8px 0 0" }}
+        >
+          Approximate location
+        </p>
+      )}
       {selected && (
         <Link
-          href={`/doctor/${selected.npi}${insurance ? `?insurance=${insurance}` : ""}`}
+          href={`/doctor/${selected.npi}${query}`}
           className="card pressable fade-up"
           style={{
             position: "absolute",
@@ -162,12 +166,7 @@ export default function ResultsMap({
               {selected.specialty}
               {selected.distanceMi !== null && ` · ${selected.distanceMi} mi`}
             </p>
-            {insurance && selected.plans.includes(insurance) && (
-              <span className="badge-ok">
-                <CheckIcon size={13} />
-                Accepts {insurerName(insurance)}
-              </span>
-            )}
+            {selected.coverage && <CoverageBadge coverage={selected.coverage} />}
           </div>
           <ChevronRightIcon size={18} className="muted" />
         </Link>

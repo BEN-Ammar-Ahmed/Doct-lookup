@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body>
         <div className="phone-shell">{children}</div>
+        <SpeedInsights />
       </body>
     </html>
   );

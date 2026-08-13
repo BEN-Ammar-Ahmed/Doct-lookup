@@ -1,5 +1,3 @@
-import { plansFor } from "./insurance";
-
 export type Doctor = {
   npi: string;
   name: string;
@@ -9,10 +7,10 @@ export type Doctor = {
   state: string;
   zip: string;
   phone: string | null;
-  plans: string[];
   lat: number | null;
   lng: number | null;
   distanceMi: number | null;
+  locationApproximate: boolean;
 };
 
 const NPI_BASE = "https://npiregistry.cms.hhs.gov/api/";
@@ -53,10 +51,10 @@ export function normalizeNpiResult(raw: any): Doctor | null {
     state: addr.state ?? "",
     zip: String(addr.postal_code ?? "").slice(0, 5),
     phone: addr.telephone_number ?? null,
-    plans: plansFor(String(raw.number)),
     lat: null,
     lng: null,
     distanceMi: null,
+    locationApproximate: true,
   };
 }
 
@@ -76,24 +74,29 @@ async function callNpi(params: Record<string, string>): Promise<any[]> {
   return data.results ?? [];
 }
 
+export const NPI_PAGE_SIZE = 50;
+
 export async function searchNpi(params: {
   zip?: string;
   specialty?: string;
   firstName?: string;
   lastName?: string;
   state?: string;
-}): Promise<Doctor[]> {
+  skip?: number;
+}): Promise<{ doctors: Doctor[]; hasMore: boolean }> {
   const query: Record<string, string> = {};
   if (params.zip) query.postal_code = params.zip;
   if (params.specialty) query.taxonomy_description = params.specialty;
   if (params.firstName) query.first_name = params.firstName;
   if (params.lastName) query.last_name = params.lastName;
   if (params.state) query.state = params.state;
+  if (params.skip) query.skip = String(params.skip);
 
   const results = await callNpi(query);
-  return results
+  const doctors = results
     .map(normalizeNpiResult)
     .filter((d): d is Doctor => d !== null);
+  return { doctors, hasMore: results.length === NPI_PAGE_SIZE };
 }
 
 export async function fetchNpiByNumber(npi: string): Promise<Doctor | null> {

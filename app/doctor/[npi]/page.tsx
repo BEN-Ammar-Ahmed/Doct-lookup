@@ -5,9 +5,19 @@ export default async function DoctorPage({
   searchParams,
 }: {
   params: Promise<{ npi: string }>;
-  searchParams: Promise<{ insurance?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { npi } = await params;
-  const { insurance } = await searchParams;
-  return <DoctorProfile npi={npi} insurance={insurance ?? ""} />;
+  const sp = await searchParams;
+  return (
+    <DoctorProfile
+      npi={npi}
+      category={sp.category ?? "none"}
+      planId={sp.planId ?? ""}
+      planName={sp.planName ?? ""}
+      issuerName={sp.issuerName ?? ""}
+      planYear={sp.planYear ?? ""}
+      insurerName={sp.insurerName ?? ""}
+    />
+  );
 }

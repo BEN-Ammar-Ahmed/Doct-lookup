@@ -1,52 +1,79 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { Doctor } from "@/lib/npi";
-import { INSURERS, insurerName } from "@/lib/insurers";
+import type { CoverageDisplay } from "@/lib/coverage";
+import { homepageFor } from "@/lib/insurers";
 import { initialsOf } from "@/lib/options";
 import {
-  CheckIcon,
   ChevronLeftIcon,
+  ExternalLinkIcon,
   MapPinIcon,
   PhoneIcon,
   RefreshIcon,
-  XIcon,
 } from "./Icons";
+import { CoverageBadge, CoverageCaption } from "./CoverageBadge";
 
 const ResultsMap = dynamic(() => import("./ResultsMap"), { ssr: false });
 
+type Props = {
+  npi: string;
+  category: string;
+  planId: string;
+  planName: string;
+  issuerName: string;
+  planYear: string;
+  insurerName: string;
+};
+
 export default function DoctorProfile({
   npi,
-  insurance,
-}: {
-  npi: string;
-  insurance: string;
-}) {
-  const [doctor, setDoctor] = useState<Doctor | null>(null);
+  category,
+  planId,
+  planName,
+  issuerName,
+  planYear,
+  insurerName,
+}: Props) {
+  const [doctor, setDoctor] = useState<(Doctor & { coverage?: CoverageDisplay }) | null>(null);
   const [error, setError] = useState(false);
+
+  const query = useMemo(() => {
+    const q = new URLSearchParams();
+    if (category !== "none") q.set("category", category);
+    if (category === "marketplace") {
+      q.set("planId", planId);
+      q.set("planName", planName);
+      q.set("issuerName", issuerName);
+      q.set("planYear", planYear);
+    }
+    if (category === "other" && insurerName) q.set("insurerName", insurerName);
+    return q;
+  }, [category, planId, planName, issuerName, planYear, insurerName]);
 
   const load = useCallback(() => {
     setError(false);
-    fetch(`/api/doctors/${npi}`)
+    fetch(`/api/doctors/${npi}?${query}`)
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json();
       })
       .then((d) => setDoctor(d.doctor))
       .catch(() => setError(true));
-  }, [npi]);
+  }, [npi, query]);
 
   useEffect(load, [load]);
 
-  const accepted = doctor?.plans ?? [];
-  const notAccepted = INSURERS.filter((i) => !accepted.includes(i.id));
-  const sortedAccepted = insurance
-    ? [...accepted].sort((a, b) =>
-        a === insurance ? -1 : b === insurance ? 1 : 0
-      )
-    : accepted;
+  const coverage = doctor?.coverage;
+  const directoryUrl = insurerName ? homepageFor(insurerName) : null;
+
+  const findOthersHref = (() => {
+    const q = new URLSearchParams(query);
+    if (doctor) q.set("zip", doctor.zip);
+    return `/results?${q}`;
+  })();
 
   return (
     <main className="screen" style={{ paddingTop: 12 }}>
@@ -166,73 +193,85 @@ export default function DoctorProfile({
             </div>
           </a>
 
-          <p className="lbl">
-            Accepted insurance <span style={{ fontWeight: 400 }}>(demo data)</span>
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {sortedAccepted.map((id) => (
-              <span
-                key={id}
-                className="badge-ok"
-                style={{ fontSize: 13, padding: "6px 11px" }}
-              >
-                <CheckIcon size={14} />
-                {insurerName(id)}
-                {insurance === id && " · yours"}
-              </span>
-            ))}
-          </div>
+          {coverage && (
+            <div className="card" style={{ marginTop: 16 }}>
+              <p className="lbl" style={{ margin: "0 0 8px" }}>
+                Insurance verification
+              </p>
+              <CoverageBadge coverage={coverage} size={13.5} />
+              {coverage.planName && (
+                <p style={{ margin: "8px 0 0", fontSize: 13.5 }}>
+                  {coverage.planName}
+                  {coverage.issuerName ? ` · ${coverage.issuerName}` : ""}
+                  {coverage.planYear ? ` · ${coverage.planYear}` : ""}
+                </p>
+              )}
+              {coverage.accepting && (
+                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  New-patient status: {coverage.accepting}
+                </p>
+              )}
+              {coverage.providerAddress && (
+                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  Address on file with insurer: {coverage.providerAddress}
+                </p>
+              )}
+              {coverage.note && (
+                <p className="muted" style={{ margin: "10px 0 0", fontSize: 12 }}>
+                  {coverage.note}
+                </p>
+              )}
+              <CoverageCaption coverage={coverage} />
 
-          <p className="lbl">Not accepted</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {notAccepted.map((i) => (
-              <span
-                key={i.id}
-                className="badge-no"
-                style={{ fontSize: 13, padding: "6px 11px" }}
-              >
-                <XIcon size={13} />
-                {i.name}
-              </span>
-            ))}
-          </div>
+              {coverage.status === "unsupported" && directoryUrl && (
+                <a
+                  href={directoryUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="chip"
+                  style={{
+                    marginTop: 10,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <ExternalLinkIcon size={13} />
+                  {insurerName}'s provider directory
+                </a>
+              )}
+
+              {coverage.status === "not_covered" && (
+                <Link
+                  href={findOthersHref}
+                  style={{
+                    display: "block",
+                    marginTop: 10,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Find nearby providers listed as covered
+                </Link>
+              )}
+            </div>
+          )}
 
           {doctor.lat !== null && doctor.lng !== null && (
             <div style={{ marginTop: 18 }}>
               <ResultsMap
                 center={{ lat: doctor.lat, lng: doctor.lng }}
                 doctors={[doctor]}
-                insurance={insurance}
+                query={`?${query}`}
               />
-            </div>
-          )}
-
-          {insurance && !doctor.plans.includes(insurance) && (
-            <div
-              className="card"
-              style={{
-                marginTop: 14,
-                borderColor: "#f0c9c9",
-                background: "var(--danger-bg)",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: 14, color: "var(--danger-ink)" }}>
-                This provider doesn't accept {insurerName(insurance)} in our
-                demo data.{" "}
-                <Link
-                  href={`/results?mode=insurance&insurance=${insurance}&zip=${doctor.zip}`}
-                  style={{ textDecoration: "underline", fontWeight: 600 }}
-                >
-                  Find nearby providers who do
-                </Link>
-              </p>
             </div>
           )}
         </div>
       )}
 
       <p className="disclaimer" style={{ marginTop: "auto" }}>
-        Demo — insurance data is illustrative
+        Provider data is from the public NPI registry.
       </p>
     </main>
   );

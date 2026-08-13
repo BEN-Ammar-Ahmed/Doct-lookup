@@ -11,8 +11,8 @@ import {
 const STEPS = [
   {
     icon: ShieldCheckIcon,
-    title: "Pick your insurance",
-    body: "Choose your plan from the big national insurers.",
+    title: "Pick ACA Marketplace, Medicare, or other",
+    body: "ACA Marketplace and Original Medicare are checked against real government data. Other insurers are labeled not verified — never guessed.",
   },
   {
     icon: MapPinIcon,
@@ -22,7 +22,7 @@ const STEPS = [
   {
     icon: PhoneIcon,
     title: "Call with confidence",
-    body: "See who takes your plan before you ever pick up the phone.",
+    body: "See a real coverage result, its source, and when it was checked before you pick up the phone.",
   },
 ];
 
@@ -108,7 +108,7 @@ export default function Home() {
             </p>
             <span className="badge-ok">
               <CheckIcon size={13} />
-              Accepts Blue Cross Blue Shield
+              Listed as covered
             </span>
           </div>
         </div>
@@ -175,9 +175,9 @@ export default function Home() {
         </Link>
       </main>
       <footer className="disclaimer">
-        Demo project — insurance data is illustrative. Provider names,
-        specialties, and phone numbers are real, from the public US NPI
-        registry.
+        Provider names, specialties, and phone numbers are real, from the
+        public US NPI registry. ACA Marketplace and Original Medicare
+        coverage checks use real CMS data; other insurers aren't verified.
       </footer>
     </>
   );

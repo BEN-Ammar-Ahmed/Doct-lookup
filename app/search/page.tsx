@@ -62,8 +62,9 @@ export default function SearchPage() {
         <SearchForm />
       </main>
       <footer className="disclaimer">
-        Demo project — insurance data is illustrative, provider data is from
-        the public NPI registry.
+        Provider data is from the public NPI registry. ACA Marketplace and
+        Original Medicare coverage checks use real CMS data; other insurers
+        aren't verified.
       </footer>
     </>
   );

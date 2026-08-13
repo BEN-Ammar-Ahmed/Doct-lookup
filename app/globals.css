@@ -2,8 +2,8 @@
   --primary: #0f6e8c;
   --primary-deep: #0b5670;
   --primary-tint: #dfeef3;
-  --cta: #0e8a5f;
-  --cta-press: #0b6f4c;
+  --cta: #0c7a54;
+  --cta-press: #085c3f;
   --ink: #262420;
   --muted: #6b6558;
   --bg: #faf9f7;
@@ -11,7 +11,7 @@
   --line: #e6e2db;
   --chip-bg: #f0eee8;
   --ok-bg: #e6f3ec;
-  --ok-ink: #0e8a5f;
+  --ok-ink: #0c7a54;
   --danger: #b5545c;
   --danger-bg: #f8ecee;
   --danger-ink: #8f4750;
@@ -91,7 +91,9 @@ button {
   font-size: 17px;
   font-weight: 600;
   font-family: var(--font-heading), system-ui, sans-serif;
-  transition: transform 150ms ease, background 150ms ease;
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 150ms ease;
 }
 
 .btn-primary:active {
@@ -204,6 +206,24 @@ button {
   border-radius: 999px;
 }
 
+.badge-neutral {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--chip-bg);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+
+.coverage-caption {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
 .avatar {
   width: 42px;
   height: 42px;
@@ -257,7 +277,7 @@ button {
 }
 
 .fade-up {
-  animation: fadeUp 240ms ease-out backwards;
+  animation: fadeUp 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes fadeUp {
@@ -272,11 +292,21 @@ button {
 }
 
 .pressable {
-  transition: transform 150ms ease;
+  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .pressable:active {
   transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .pressable:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .fld-icon {

@@ -1,21 +1,21 @@
 import Link from "next/link";
 import type { Doctor } from "@/lib/npi";
-import { insurerName } from "@/lib/insurers";
+import type { CoverageDisplay } from "@/lib/coverage";
 import { initialsOf } from "@/lib/options";
-import { CheckIcon, ChevronRightIcon, XIcon } from "./Icons";
+import { ChevronRightIcon } from "./Icons";
+import { CoverageBadge, CoverageCaption } from "./CoverageBadge";
 
 export default function DoctorCard({
   doctor,
-  insurance,
   index,
+  query,
   dimmed = false,
 }: {
-  doctor: Doctor;
-  insurance: string;
+  doctor: Doctor & { coverage?: CoverageDisplay };
   index: number;
+  query: string;
   dimmed?: boolean;
 }) {
-  const accepts = insurance && doctor.plans.includes(insurance);
   const meta = [
     doctor.specialty,
     doctor.distanceMi !== null ? `${doctor.distanceMi} mi` : null,
@@ -26,14 +26,14 @@ export default function DoctorCard({
 
   return (
     <Link
-      href={`/doctor/${doctor.npi}${insurance ? `?insurance=${insurance}` : ""}`}
+      href={`/doctor/${doctor.npi}${query}`}
       className="card pressable fade-up"
       style={{
         display: "flex",
         gap: 10,
         alignItems: "center",
         marginBottom: 10,
-        opacity: dimmed ? 0.55 : 1,
+        opacity: dimmed ? 0.75 : 1,
         animationDelay: `${Math.min(index, 8) * 40}ms`,
       }}
     >
@@ -42,24 +42,14 @@ export default function DoctorCard({
         <p style={{ margin: 0, fontWeight: 600, fontSize: 15.5 }}>
           {doctor.name}
         </p>
-        <p
-          className="muted"
-          style={{ margin: "2px 0 6px", fontSize: 13 }}
-        >
+        <p className="muted" style={{ margin: "2px 0 6px", fontSize: 13 }}>
           {meta}
         </p>
-        {accepts ? (
-          <span className="badge-ok">
-            <CheckIcon size={13} />
-            Accepts {insurerName(insurance)}
-          </span>
-        ) : (
-          insurance && (
-            <span className="badge-no">
-              <XIcon size={13} />
-              Not in network
-            </span>
-          )
+        {doctor.coverage && (
+          <>
+            <CoverageBadge coverage={doctor.coverage} />
+            <CoverageCaption coverage={doctor.coverage} />
+          </>
         )}
       </div>
       <ChevronRightIcon size={18} className="muted" />

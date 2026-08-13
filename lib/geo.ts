@@ -1,6 +1,13 @@
-import { fnv1a } from "./insurance";
-
 export type LatLng = { lat: number; lng: number };
+
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
 
 const zipCache = new Map<string, LatLng | null>();
 
@@ -60,6 +67,44 @@ export async function latLngToZip(lat: number, lng: number): Promise<string | nu
     return zip;
   } catch {
     reverseZipCache.set(key, null);
+    return null;
+  }
+}
+
+const addressCache = new Map<string, LatLng | null>();
+
+// Real forward-geocode for a single street address — used only on the
+// doctor detail page (one address, one request). Search results still use
+// the ZIP-centroid-plus-offset approximation below: geocoding up to 50 real
+// addresses per search would exceed Nominatim's free-tier ~1 req/sec limit.
+export async function addressToLatLng(address: string): Promise<LatLng | null> {
+  const key = address.trim().toLowerCase();
+  if (!key) return null;
+  if (addressCache.has(key)) return addressCache.get(key)!;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`,
+      {
+        signal: AbortSignal.timeout(6000),
+        cache: "no-store",
+        headers: { "User-Agent": "doct-lookup-demo (educational project)" },
+      }
+    );
+    if (!res.ok) {
+      addressCache.set(key, null);
+      return null;
+    }
+    const data = await res.json();
+    const hit = data?.[0];
+    if (!hit) {
+      addressCache.set(key, null);
+      return null;
+    }
+    const coords = { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) };
+    addressCache.set(key, coords);
+    return coords;
+  } catch {
+    addressCache.set(key, null);
     return null;
   }
 }
