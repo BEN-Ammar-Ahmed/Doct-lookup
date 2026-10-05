@@ -15,3 +15,6 @@ data/generated/
 data/source/
 
 .vercel/
+
+.vercel
+.env*

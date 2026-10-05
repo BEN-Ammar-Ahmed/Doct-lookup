@@ -17,7 +17,15 @@ export const metadata: Metadata = {
   ...(site ? { metadataBase: new URL(site) } : {}),
   title: { default: title, template: "%s | InsureBased" },
   description,
-  icons: { icon: [{ url: "/favicon.ico", sizes: "16x16 32x32 48x48" }], apple: "/apple-touch-icon.png" },
+  icons: {
+    icon: [
+      { url: "/brand/insurebased-mark.svg?v=2", type: "image/svg+xml" },
+      { url: "/icon-32.png?v=2", sizes: "32x32", type: "image/png" },
+      { url: "/icon-16.png?v=2", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico?v=2",
+    apple: [{ url: "/apple-touch-icon.png?v=2", sizes: "180x180", type: "image/png" }],
+  },
   manifest: "/manifest.webmanifest",
   openGraph: { type: "website", siteName: "InsureBased", title, description, images: [{ url: "/brand/insurebased-social.png", width: 1200, height: 630, alt: "InsureBased — Find doctors. Understand coverage." }] },
   twitter: { card: "summary_large_image", title, description, images: ["/brand/insurebased-social.png"] },
