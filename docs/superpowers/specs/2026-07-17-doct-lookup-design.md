@@ -1,21 +1,21 @@
 # Doct Lookup — Design Spec
 
 **Date:** 2026-07-17
-**Status:** Approved direction (mockups reviewed by owner)
+**Status:** Historical v1 direction; current app uses live public provider records and source-backed coverage only.
 
 ## What it is
 
 A mobile-first website where a person picks their health insurance, enters a ZIP code, and sees real nearby doctors who accept that insurance. Built as a learning/portfolio project.
 
-- Real doctors, live from the free NPI Registry API (`https://npiregistry.cms.hhs.gov/api/`) — no API key required.
-- Insurance acceptance is **demo data**: derived deterministically from each doctor's NPI number across a fixed list of 10 major insurers, so the same doctor always shows the same plans. A visible disclaimer says the insurance data is illustrative.
+- Real providers, live from the free NPI Registry API (`https://npiregistry.cms.hhs.gov/api/`) — no API key required.
+- Insurance coverage is never fabricated. Original Medicare labels use official CMS Provider Data; ACA Marketplace checks use the CMS Marketplace API when `CMS_MARKETPLACE_API_KEY` is configured; other insurance is labeled not verified.
 - **Mobile-first is a hard requirement.** Every screen is designed for phones; desktop gets a centered column layout.
 
 ## Stack
 
 - Next.js (App Router) with TypeScript.
 - Leaflet + OpenStreetMap tiles for the map (free, no API key).
-- No database — live API + in-code insurance mapping + bundled ZIP-code coordinate table.
+- No database — live APIs, in-memory caching, and address-level geocoding where a match is available.
 
 ## Design system (from ui-ux-pro-max: "Accessible & Ethical" healthcare style)
 
@@ -28,7 +28,7 @@ A mobile-first website where a person picks their health insurance, enters a ZIP
 ## Screens
 
 0. **Home (landing)** — added 2026-07-18 at owner's request: the site must not open directly on the search form. Minimal single-column landing: hero headline, one-line description, primary CTA to `/search`, sample doctor card, three "How it works" steps (pick insurance → enter ZIP → call with confidence), second CTA, disclaimer footer.
-1. **Search (`/search`)** — two tabs: "By insurance" (insurance picker, ZIP input, optional specialty) and "By doctor name" (name + optional state). Single big green CTA. Demo disclaimer in footer.
+1. **Search (`/search`)** — two tabs: "By insurance" (insurance category, ZIP input, optional specialty, exact Marketplace plan picker when configured) and "By doctor name" (name + optional state). Source-backed disclaimer in footer.
 2. **Results** — List/Map toggle. List: doctor cards (avatar initials, name, specialty, distance, address, green "Accepts X" badge); nearby doctors who don't accept the plan appear dimmed below matches. Map: Leaflet map with pins for matches; tapping a pin shows a mini card. Search summary pill at top returns to search.
 3. **Doctor profile** — name, specialty, NPI, address, tap-to-call phone button, full accepted-insurance chips (user's plan highlighted green, not-accepted shown in red section), small map of the office location.
 4. Reverse lookup reuses Results and Profile screens.
@@ -51,14 +51,14 @@ Browser (phone)
   └─ Next.js pages (App Router, client components for search/results/map)
        └─ /api/doctors/search   → calls NPI Registry (by ZIP+specialty or name)
        └─ /api/doctors/[npi]    → single doctor detail
-            └─ lib/insurance.ts → deterministic NPI→plans mapping (10 insurers)
-            └─ lib/geo.ts       → ZIP→lat/lng table + per-doctor pin offset
+            └─ lib/insuranceCheck.ts → Medicare / Marketplace / unsupported coverage dispatcher
+            └─ lib/providerLocations.ts → address-level geocoding before pins/distances display
 ```
 
-- The browser never calls the NPI registry directly; our API routes normalize the messy NPI response into a clean `Doctor` shape: `{ npi, name, specialty, address, city, state, zip, phone, lat, lng, plans: string[] }`.
-- Insurance mapping: stable hash of NPI number selects 3–6 plans from the insurer list. Pure function, unit-tested: same NPI in → same plans out, always.
-- Map pins: ZIP centroid from a bundled ZIP→coordinates table, plus a small deterministic offset per NPI so pins don't stack.
-- Insurer list: Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, Kaiser Permanente, Molina, Centene/Ambetter, Medicare, Medicaid.
+- The browser never calls the NPI registry directly; our API routes normalize the messy NPI response into a clean `Doctor` shape: `{ npi, name, specialty, address1, city, state, zip, phone, lat, lng, distanceMi }`.
+- Coverage labels are computed per search from real data sources where available. Unknown and unavailable states stay honest instead of becoming guessed positives.
+- Map pins: real provider practice addresses geocoded to latitude/longitude. If geocoding fails, do not show a fabricated pin for that provider.
+- Insurer list: common carrier names are used for the unsupported "Other / employer insurance" directory helper only; they do not drive coverage answers.
 
 ## Error handling
 
@@ -69,9 +69,9 @@ Browser (phone)
 
 ## Testing
 
-- Unit tests: insurance mapping (determinism, plan-count bounds), NPI response normalization (mocked fixtures), ZIP validation.
+- Unit tests: NPI response normalization, Medicare/Marketplace coverage handling, provider address geocoding, search params, security boundaries, and ZIP validation.
 - Manual verification in phone-sized browser preview (375px) after each feature.
 
 ## Out of scope (v1)
 
-- Real insurance acceptance data, accounts/login, reviews, appointment booking, non-US providers.
+- Accounts/login, reviews, appointment booking, non-US providers, and unsupported commercial/employer network verification.

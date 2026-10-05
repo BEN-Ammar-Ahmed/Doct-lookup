@@ -1,0 +1,15 @@
+.next
+node_modules
+.git
+.env*
+!.env.example
+artifacts
+playwright-report
+test-results
+.ai-context
+.claude
+.codex
+.agents
+*.patch
+*.zip
+docs/WORKING_TREE_FILES.txt

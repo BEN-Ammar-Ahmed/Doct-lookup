@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchMarketplacePlans, MarketplaceConfigError } from "@/lib/marketplace";
 import { isValidZip, isValidPlanYear } from "@/lib/validation";
-import { isRateLimited, clientKey } from "@/lib/rateLimit";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 export async function GET(req: NextRequest) {
-  if (isRateLimited(`marketplace-plans:${clientKey(req)}`)) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-  }
+  const limited = await rateLimitResponse(req, "marketplace-plans");
+  if (limited) return limited;
 
   const sp = req.nextUrl.searchParams;
   const zip = sp.get("zip") ?? "";

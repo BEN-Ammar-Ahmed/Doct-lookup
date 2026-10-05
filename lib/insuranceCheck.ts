@@ -1,5 +1,6 @@
+import { storedMedicare } from "./providerStore";
 import type { CoverageDisplay } from "./coverage";
-import { unsupportedCoverage } from "./coverage";
+import { COVERAGE_LABELS, unsupportedCoverage } from "./coverage";
 import { checkMedicareAssignment, medicareCoverageDisplay } from "./medicare";
 import {
   checkMarketplaceCoverage,
@@ -31,9 +32,11 @@ export async function computeCoverage(
   if (npis.length === 0 || query.category === "none") return out;
 
   if (query.category === "medicare") {
-    const results = await checkMedicareAssignment(npis);
+    let results;
+    try { results = await storedMedicare(npis) ?? await checkMedicareAssignment(npis); }
+    catch { results = new Map(npis.map(npi => [npi, { status: "unavailable" as const }])); }
     for (const npi of npis) {
-      out.set(npi, medicareCoverageDisplay(results.get(npi) ?? { status: "unavailable" }));
+      out.set(npi, medicareCoverageDisplay(results.get(npi) ?? { status: "no_record" }));
     }
     return out;
   }
@@ -54,13 +57,13 @@ export async function computeCoverage(
     } catch (err) {
       const label =
         err instanceof MarketplaceConfigError
-          ? "Insurance verification isn't configured on this site yet"
-          : "Verification temporarily unavailable";
+          ? COVERAGE_LABELS.notConfigured
+          : COVERAGE_LABELS.unavailable;
       for (const npi of npis) {
         out.set(npi, {
           status: "unavailable",
           label,
-          source: "CMS Marketplace API",
+          source: "HealthCare.gov Marketplace data",
           checkedAt: new Date().toISOString(),
         });
       }

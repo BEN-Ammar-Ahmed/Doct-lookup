@@ -39,4 +39,19 @@ describe("buildSearchParams", () => {
     expect(nextPage.get("lat")).toBe(first.get("lat"));
     expect(nextPage.get("skip")).toBe("50");
   });
+
+  it("preserves lat/lng from a location-based results URL", () => {
+    const q = buildSearchParams({
+      zip: "60614",
+      lat: "41.91",
+      lng: "-87.65",
+      specialty: "Dermatology",
+      category: "none",
+    });
+
+    expect(q.get("zip")).toBeNull();
+    expect(q.get("lat")).toBe("41.91");
+    expect(q.get("lng")).toBe("-87.65");
+    expect(q.get("specialty")).toBe("Dermatology");
+  });
 });

@@ -1,26 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { pinFor, milesBetween } from "./geo";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { addressToLatLng, milesBetween } from "./geo";
 
-describe("pinFor", () => {
-  const center = { lat: 41.9227, lng: -87.6533 };
-
-  it("is deterministic", () => {
-    expect(pinFor("1942579198", center)).toEqual(pinFor("1942579198", center));
-  });
-
-  it("stays within ~0.01 degrees of center", () => {
-    for (const npi of ["1000000001", "1487654321", "1942579198"]) {
-      const pin = pinFor(npi, center);
-      expect(Math.abs(pin.lat - center.lat)).toBeLessThanOrEqual(0.01);
-      expect(Math.abs(pin.lng - center.lng)).toBeLessThanOrEqual(0.01);
-    }
-  });
-
-  it("spreads different doctors to different pins", () => {
-    const a = pinFor("1000000001", center);
-    const b = pinFor("1222222222", center);
-    expect(a).not.toEqual(b);
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("milesBetween", () => {
@@ -35,5 +17,48 @@ describe("milesBetween", () => {
     const d = milesBetween(nyc, la);
     expect(d).toBeGreaterThan(2395);
     expect(d).toBeLessThan(2495);
+  });
+});
+
+describe("addressToLatLng", () => {
+  it("uses Census geocoder coordinates for US addresses", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: true,
+      json: async () => ({
+        result: {
+          addressMatches: [
+            {
+              coordinates: { x: -87.62451, y: 41.8803 },
+            },
+          ],
+        },
+      }),
+    } as Response));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const coords = await addressToLatLng("122 S Michigan Ave, Chicago, IL 60603 test A");
+
+    expect(coords).toEqual({ lat: 41.8803, lng: -87.62451 });
+    expect(String(fetchMock.mock.calls[0][0])).toContain("geocoding.geo.census.gov");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not bulk-geocode against public Nominatim when Census does not match", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: { addressMatches: [] } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ lat: "41.881", lon: "-87.623" }],
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const coords = await addressToLatLng("8 S Michigan Ave, Chicago, IL 60603 test B");
+
+    expect(coords).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

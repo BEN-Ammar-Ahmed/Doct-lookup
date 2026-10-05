@@ -5,3 +5,13 @@ out/
 next-env.d.ts
 .env*
 !.env.example
+artifacts/
+*-pre-codex-working-tree.patch
+doct-lookup-source-*.zip
+playwright-report/
+test-results/
+.ai-context/
+data/generated/
+data/source/
+
+.vercel/

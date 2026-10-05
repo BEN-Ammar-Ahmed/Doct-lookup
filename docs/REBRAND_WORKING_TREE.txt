@@ -1,0 +1,89 @@
+ M .env.example
+ M .gitignore
+ M CLAUDE.md
+ M README.md
+ M app/api/doctors/[npi]/route.ts
+ M app/api/doctors/search/route.ts
+ M app/api/insurance/marketplace/plans/route.ts
+ M app/doctor/[npi]/page.tsx
+ M app/globals.css
+ M app/layout.tsx
+ M app/page.tsx
+ M app/results/page.tsx
+ M app/search/page.tsx
+ M components/CoverageBadge.tsx
+ M components/DoctorCard.tsx
+ M components/DoctorProfile.tsx
+ M components/ResultsClient.tsx
+ M components/ResultsMap.tsx
+ M components/SearchForm.tsx
+ M components/Skeleton.tsx
+ M docs/superpowers/plans/2026-07-17-doct-lookup-v1.md
+ M docs/superpowers/specs/2026-07-17-doct-lookup-design.md
+ M lib/coverage.ts
+ M lib/geo.test.ts
+ M lib/geo.ts
+ M lib/insuranceCheck.ts
+ M lib/marketplace.test.ts
+ M lib/marketplace.ts
+ M lib/medicare.test.ts
+ M lib/medicare.ts
+ M lib/npi.test.ts
+ M lib/npi.ts
+ M lib/rateLimit.ts
+ M lib/searchParams.test.ts
+ M lib/searchParams.ts
+ M next.config.ts
+ M package-lock.json
+ M package.json
+?? .github/
+?? .vercelignore
+?? AGENTS.md
+?? HANDOFF.md
+?? app/about/
+?? app/accessibility/
+?? app/api/doctors/geocode/
+?? app/data/
+?? app/error.tsx
+?? app/favicon.ico
+?? app/global-error.tsx
+?? app/how-it-works/
+?? app/manifest.ts
+?? app/not-found.tsx
+?? app/privacy/
+?? app/report/
+?? app/robots.ts
+?? app/sitemap.ts
+?? app/terms/
+?? components/AppHeader.tsx
+?? components/Brand.tsx
+?? components/HomeSearch.tsx
+?? components/LazyResultsMap.tsx
+?? components/MapBoundary.tsx
+?? components/SiteFooter.tsx
+?? components/SiteHeader.tsx
+?? db/
+?? docs/AI_LEARNINGS.md
+?? docs/BRANDING.md
+?? docs/DATA_PIPELINE.md
+?? docs/DECISIONS.md
+?? docs/DESIGN_SYSTEM.md
+?? docs/EXECUTION_REPORT.md
+?? docs/REBRAND_RELEASE_REPORT.md
+?? docs/REBRAND_WORKING_TREE.txt
+?? docs/WORKING_TREE_FILES.txt
+?? eslint.config.mjs
+?? lib/fixtures/ingestion-nppes.csv
+?? lib/homeContent.ts
+?? lib/ingestion.test.ts
+?? lib/ingestion.ts
+?? lib/marketplaceFailures.test.ts
+?? lib/providerLocations.test.ts
+?? lib/providerLocations.ts
+?? lib/providerStore.ts
+?? lib/rateLimit.test.ts
+?? playwright.config.ts
+?? public/
+?? scripts/
+?? tests/
+?? vitest.config.mts

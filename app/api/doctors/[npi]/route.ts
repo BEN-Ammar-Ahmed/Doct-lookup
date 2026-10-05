@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { storedProvider, storedCoordinates } from "@/lib/providerStore";
 import { fetchNpiByNumber, type Doctor } from "@/lib/npi";
-import { zipToLatLng, pinFor, addressToLatLng } from "@/lib/geo";
+import { geocodeProviderLocations } from "@/lib/providerLocations";
 import { computeCoverage, type InsuranceQuery } from "@/lib/insuranceCheck";
 import type { CoverageDisplay } from "@/lib/coverage";
 import { isValidNpi, isValidPlanId, isValidPlanYear } from "@/lib/validation";
-import { isRateLimited, clientKey } from "@/lib/rateLimit";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 function parseInsuranceQuery(sp: URLSearchParams): InsuranceQuery | { error: string } {
   const category = sp.get("category") ?? "none";
@@ -32,9 +33,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ npi: string }> }
 ) {
-  if (isRateLimited(`detail:${clientKey(req)}`)) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-  }
+  const limited = await rateLimitResponse(req, "detail");
+  if (limited) return limited;
 
   const { npi } = await params;
   if (!isValidNpi(npi)) {
@@ -47,26 +47,12 @@ export async function GET(
   }
 
   try {
-    const doctor = await fetchNpiByNumber(npi);
+    const stored = await storedProvider(npi);
+    let doctor = stored === undefined ? await fetchNpiByNumber(npi) : stored;
     if (!doctor) {
       return NextResponse.json({ doctor: null }, { status: 404 });
     }
-    const fullAddress = [doctor.address1, doctor.city, doctor.state, doctor.zip]
-      .filter(Boolean)
-      .join(", ");
-    const exact = fullAddress ? await addressToLatLng(fullAddress) : null;
-    if (exact) {
-      doctor.lat = exact.lat;
-      doctor.lng = exact.lng;
-      doctor.locationApproximate = false;
-    } else {
-      const center = await zipToLatLng(doctor.zip);
-      if (center) {
-        const pin = pinFor(doctor.npi, center);
-        doctor.lat = pin.lat;
-        doctor.lng = pin.lng;
-      }
-    }
+    [doctor] = process.env.DATABASE_URL ? await storedCoordinates([doctor], null) : await geocodeProviderLocations([doctor], null, 1);
     const coverage = await computeCoverage([doctor.npi], insuranceQuery);
     const result: Doctor & { coverage?: CoverageDisplay } = {
       ...doctor,

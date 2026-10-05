@@ -1,4 +1,4 @@
-import type { CoverageDisplay } from "./coverage";
+import { COVERAGE_LABELS, type CoverageDisplay } from "./coverage";
 
 // Real data: CMS's Marketplace API (developer.cms.gov/marketplace-api),
 // the same data that powers HealthCare.gov. Requires a free API key —
@@ -7,7 +7,7 @@ import type { CoverageDisplay } from "./coverage";
 //   POST /plans/search                   -> real ACA plans for a place
 //   GET  /providers/covered              -> Covered/NotCovered/DataNotProvided
 const CMS_BASE = "https://marketplace.api.healthcare.gov/api/v1";
-const SOURCE = "CMS Marketplace API";
+const SOURCE = "HealthCare.gov Marketplace data";
 
 export class MarketplaceConfigError extends Error {
   constructor() {
@@ -78,7 +78,7 @@ export type MarketplaceCoverageResult =
       accepting?: string;
       addresses?: { address1?: string; city?: string; state?: string; zipcode?: string }[];
     }
-  | { status: "unavailable" };
+  | { status: "unavailable"; reason?: "not_configured" };
 
 export async function checkMarketplaceCoverage(
   npis: string[],
@@ -90,7 +90,7 @@ export async function checkMarketplaceCoverage(
 
   try {
     const qs = new URLSearchParams({ year: String(year), apikey: apiKey() });
-    npis.forEach((npi) => qs.append("providerids", npi));
+    qs.set("providerids", npis.join(","));
     qs.append("planids", planId);
 
     const res = await fetch(`${CMS_BASE}/providers/covered?${qs}`, {
@@ -99,14 +99,14 @@ export async function checkMarketplaceCoverage(
     });
     if (!res.ok) throw new Error(`CMS provider coverage responded ${res.status}`);
     const data = await res.json();
-    const rows: any[] = data?.providers ?? data?.provider_coverage ?? [];
+    const rows: any[] = data?.providers ?? data?.provider_coverage ?? data?.["Provider & Drug Coverage"] ?? [];
 
     for (const row of rows) {
       const npi = String(row.npi ?? "");
-      if (!npi) continue;
+      if (!npi || !npis.includes(npi) || row.plan_id !== planId) continue;
       const coverage = row.coverage;
       const status: "covered" | "not_covered" | "unknown" =
-        coverage === "Covered" || coverage === "GenericCovered"
+        coverage === "Covered"
           ? "covered"
           : coverage === "NotCovered"
             ? "not_covered"
@@ -122,9 +122,9 @@ export async function checkMarketplaceCoverage(
     }
   } catch (err) {
     if (!(err instanceof MarketplaceConfigError)) {
-      console.error("Marketplace coverage check failed:", err);
+      console.error("Marketplace coverage service unavailable");
     }
-    for (const npi of npis) results.set(npi, { status: "unavailable" });
+    for (const npi of npis) results.set(npi, { status: "unavailable", ...(err instanceof MarketplaceConfigError ? { reason: "not_configured" as const } : {}) });
   }
   return results;
 }
@@ -145,7 +145,7 @@ export function marketplaceCoverageDisplay(
   };
 
   if (result.status === "unavailable") {
-    return { ...base, status: "unavailable", label: "Verification temporarily unavailable" };
+    return { ...base, status: "unavailable", label: result.reason === "not_configured" ? COVERAGE_LABELS.notConfigured : COVERAGE_LABELS.unavailable };
   }
 
   const address = result.addresses?.[0];
@@ -159,7 +159,7 @@ export function marketplaceCoverageDisplay(
     return {
       ...base,
       status: "covered",
-      label: "Listed as covered by this ACA Marketplace plan",
+      label: COVERAGE_LABELS.marketplaceCovered,
       note: MARKETPLACE_NOTE_BASE,
       accepting: result.accepting,
       providerAddress,
@@ -169,7 +169,7 @@ export function marketplaceCoverageDisplay(
     return {
       ...base,
       status: "not_covered",
-      label: "Listed as not covered by this ACA Marketplace plan",
+      label: COVERAGE_LABELS.marketplaceNotCovered,
       note: MARKETPLACE_NOTE_BASE,
       accepting: result.accepting,
       providerAddress,
@@ -178,7 +178,7 @@ export function marketplaceCoverageDisplay(
   return {
     ...base,
     status: "unknown",
-    label: "Unable to verify from Marketplace data",
+    label: COVERAGE_LABELS.marketplaceUnknown,
     accepting: result.accepting,
     providerAddress,
   };

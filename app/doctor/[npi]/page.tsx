@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { isValidNpi } from "@/lib/validation";
 import DoctorProfile from "@/components/DoctorProfile";
 
 export default async function DoctorPage({
@@ -8,6 +10,7 @@ export default async function DoctorPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { npi } = await params;
+  if (!isValidNpi(npi)) notFound();
   const sp = await searchParams;
   return (
     <DoctorProfile

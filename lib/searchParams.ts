@@ -1,5 +1,7 @@
 export type ResultsQuery = {
   zip?: string;
+  lat?: string;
+  lng?: string;
   specialty?: string;
   name?: string;
   state?: string;
@@ -22,6 +24,9 @@ export function buildSearchParams(
   if (opts.override) {
     q.set("lat", String(opts.override.lat));
     q.set("lng", String(opts.override.lng));
+  } else if (query.lat && query.lng) {
+    q.set("lat", query.lat);
+    q.set("lng", query.lng);
   } else if (query.zip) {
     q.set("zip", query.zip);
   }

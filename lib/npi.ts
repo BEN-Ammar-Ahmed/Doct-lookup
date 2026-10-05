@@ -11,9 +11,40 @@ export type Doctor = {
   lng: number | null;
   distanceMi: number | null;
   locationApproximate: boolean;
+  sourceUpdatedAt?: string;
+  addressKind?: "practice" | "mailing";
+  practiceLocations?: { address1: string; city: string; state: string; zip: string; phone: string | null }[];
 };
 
 const NPI_BASE = "https://npiregistry.cms.hhs.gov/api/";
+export const DEFAULT_DOCTOR_SPECIALTIES = [
+  "Family Medicine",
+  "Internal Medicine",
+  "Pediatrics",
+  "Obstetrics & Gynecology",
+  "Psychiatry",
+  "Emergency Medicine",
+  "Dermatology",
+  "Cardiology",
+  "Ophthalmology",
+  "Orthopaedic Surgery",
+];
+
+const DEFAULT_DOCTOR_MATCHES = [
+  "family medicine",
+  "internal medicine",
+  "pediatrics",
+  "obstetrics",
+  "gynecology",
+  "psychiatry",
+  "emergency medicine",
+  "dermatology",
+  "cardiology",
+  "cardiovascular disease",
+  "ophthalmology",
+  "orthopaedic surgery",
+  "orthopedic surgery",
+];
 
 function titleCase(s: string): string {
   return s
@@ -26,6 +57,7 @@ export function normalizeNpiResult(raw: any): Doctor | null {
   if (!raw || raw.enumeration_type !== "NPI-1") return null;
   const basic = raw.basic;
   if (!basic?.first_name || !basic?.last_name) return null;
+  if (basic.status && basic.status !== "A") return null;
 
   const addresses: any[] = raw.addresses ?? [];
   const addr =
@@ -55,6 +87,9 @@ export function normalizeNpiResult(raw: any): Doctor | null {
     lng: null,
     distanceMi: null,
     locationApproximate: true,
+    addressKind: addr.address_purpose === "LOCATION" ? "practice" : "mailing",
+    sourceUpdatedAt: typeof basic.last_updated === "string" ? basic.last_updated : undefined,
+    practiceLocations: [...addresses.filter(a => a.address_purpose === "LOCATION"), ...(raw.practiceLocations ?? [])].map(a => ({ address1: titleCase(a.address_1 ?? ""), city: titleCase(a.city ?? ""), state: a.state ?? "", zip: String(a.postal_code ?? "").slice(0, 5), phone: a.telephone_number ?? null })),
   };
 }
 
@@ -76,6 +111,47 @@ async function callNpi(params: Record<string, string>): Promise<any[]> {
 
 export const NPI_PAGE_SIZE = 50;
 
+function isDefaultDoctorSpecialty(specialty: string): boolean {
+  const normalized = specialty.toLowerCase();
+  return DEFAULT_DOCTOR_MATCHES.some((match) => normalized.includes(match));
+}
+
+function hasPhysicianCredential(name: string): boolean {
+  return /,\s*(MD|DO)\b/i.test(name);
+}
+
+type DefaultPage = { doctors: Doctor[]; active: string[]; sourceSkip: number; expires: number; pending?: Promise<void> };
+const defaultSearchCache = new Map<string, DefaultPage>();
+
+async function searchDefaultDoctors(params: { zip: string; state?: string; skip?: number }): Promise<{ doctors: Doctor[]; hasMore: boolean }> {
+  const key = params.zip + ":" + (params.state ?? "");
+  let page = defaultSearchCache.get(key);
+  if (!page || page.expires < Date.now()) {
+    if (defaultSearchCache.size >= 100) defaultSearchCache.delete(defaultSearchCache.keys().next().value!);
+    page = { doctors: [], active: [...DEFAULT_DOCTOR_SPECIALTIES], sourceSkip: 0, expires: Date.now() + 300000 };
+    defaultSearchCache.set(key, page);
+  }
+  const skip = params.skip ?? 0;
+  while (page.doctors.length < skip + NPI_PAGE_SIZE && page.active.length && page.sourceSkip <= 1000) {
+    if (!page.pending) {
+      const current = page;
+      current.pending = (async () => {
+        const batches = await Promise.all(current.active.map(async taxonomy => ({ taxonomy, records: await callNpi({ postal_code: params.zip, taxonomy_description: taxonomy, skip: String(current.sourceSkip), ...(params.state ? { state: params.state } : {}) }) })));
+        const byNpi = new Map(current.doctors.map(d => [d.npi, d]));
+        for (const { records } of batches) for (const raw of records) {
+          const doctor = normalizeNpiResult(raw);
+          if (doctor && doctor.zip === params.zip && isDefaultDoctorSpecialty(doctor.specialty) && hasPhysicianCredential(doctor.name)) byNpi.set(doctor.npi, doctor);
+        }
+        current.doctors = [...byNpi.values()];
+        current.active = batches.filter(batch => batch.records.length === NPI_PAGE_SIZE).map(batch => batch.taxonomy);
+        current.sourceSkip += NPI_PAGE_SIZE;
+      })().finally(() => { current.pending = undefined; });
+    }
+    await page.pending;
+  }
+  return { doctors: page.doctors.slice(skip, skip + NPI_PAGE_SIZE), hasMore: page.doctors.length > skip + NPI_PAGE_SIZE || (page.active.length > 0 && page.sourceSkip <= 1000) };
+}
+
 export async function searchNpi(params: {
   zip?: string;
   specialty?: string;
@@ -84,6 +160,14 @@ export async function searchNpi(params: {
   state?: string;
   skip?: number;
 }): Promise<{ doctors: Doctor[]; hasMore: boolean }> {
+  if (params.zip && !params.specialty && !params.firstName && !params.lastName) {
+    return searchDefaultDoctors({
+      zip: params.zip,
+      state: params.state,
+      skip: params.skip,
+    });
+  }
+
   const query: Record<string, string> = {};
   if (params.zip) query.postal_code = params.zip;
   if (params.specialty) query.taxonomy_description = params.specialty;
@@ -95,7 +179,8 @@ export async function searchNpi(params: {
   const results = await callNpi(query);
   const doctors = results
     .map(normalizeNpiResult)
-    .filter((d): d is Doctor => d !== null);
+    .filter((d): d is Doctor => d !== null)
+    .filter((d) => !params.zip || d.zip === params.zip);
   return { doctors, hasMore: results.length === NPI_PAGE_SIZE };
 }
 

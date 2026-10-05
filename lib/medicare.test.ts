@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { checkMedicareAssignment, medicareCoverageDisplay } from "./medicare";
 
 describe("checkMedicareAssignment", () => {
@@ -16,7 +16,7 @@ describe("checkMedicareAssignment", () => {
     }) as unknown as typeof fetch;
 
     const result = await checkMedicareAssignment(["1111111111"]);
-    expect(result.get("1111111111")).toEqual({ status: "assigned" });
+    expect(result.get("1111111111")).toMatchObject({ status: "assigned" });
   });
 
   it("maps ind_assgn M to maybe, distinct from Y", async () => {
@@ -26,7 +26,7 @@ describe("checkMedicareAssignment", () => {
     }) as unknown as typeof fetch;
 
     const result = await checkMedicareAssignment(["2222222222"]);
-    expect(result.get("2222222222")).toEqual({ status: "maybe" });
+    expect(result.get("2222222222")).toMatchObject({ status: "maybe" });
 
     const assignedLabel = medicareCoverageDisplay({ status: "assigned" }).label;
     const maybeLabel = medicareCoverageDisplay({ status: "maybe" }).label;
@@ -40,7 +40,7 @@ describe("checkMedicareAssignment", () => {
     }) as unknown as typeof fetch;
 
     const result = await checkMedicareAssignment(["3333333333"]);
-    expect(result.get("3333333333")).toEqual({ status: "no_record" });
+    expect(result.get("3333333333")).toMatchObject({ status: "no_record" });
     const display = medicareCoverageDisplay(result.get("3333333333")!);
     expect(display.label.toLowerCase()).not.toContain("does not accept");
     expect(display.label.toLowerCase()).toContain("unable to verify");
@@ -50,8 +50,26 @@ describe("checkMedicareAssignment", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
 
     const result = await checkMedicareAssignment(["4444444444"]);
-    expect(result.get("4444444444")).toEqual({ status: "unavailable" });
+    expect(result.get("4444444444")).toMatchObject({ status: "unavailable" });
     expect(medicareCoverageDisplay(result.get("4444444444")!).status).toBe("unavailable");
+  });
+
+  it("chunks large Medicare checks and does not fail every doctor when one chunk fails", async () => {
+    const npis = Array.from({ length: 25 }, (_, i) => `8${String(i).padStart(9, "0")}`);
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ results: [{ npi: npis[0], ind_assgn: "Y" }] }),
+      })
+      .mockRejectedValueOnce(new Error("chunk timeout")) as unknown as typeof fetch;
+
+    const result = await checkMedicareAssignment(npis);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.get(npis[0])).toMatchObject({ status: "assigned" });
+    expect(result.get(npis[1])).toMatchObject({ status: "no_record" });
+    expect(result.get(npis[20])).toMatchObject({ status: "unavailable" });
   });
 });
 

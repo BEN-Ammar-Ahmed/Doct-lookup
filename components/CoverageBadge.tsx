@@ -23,7 +23,7 @@ export function CoverageBadge({
   return (
     <span className={classFor(coverage.status)} style={{ fontSize: size + 0.5 }}>
       <IconFor status={coverage.status} size={size} />
-      {coverage.label}
+      <span className="coverage-badge-label">{coverage.label}</span>
     </span>
   );
 }
@@ -33,10 +33,12 @@ export function CoverageCaption({ coverage }: { coverage: CoverageDisplay }) {
   const when = new Date(coverage.checkedAt).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
   });
   return (
     <p className="coverage-caption">
-      Source: {coverage.source} · Checked {when}
+      Source: {coverage.source} · Checked {when}{coverage.sourceUpdatedAt ? " · Source updated " + coverage.sourceUpdatedAt : ""}
     </p>
   );
 }

@@ -1,71 +1,26 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Find Doctors", ...(process.env.SITE_URL ? { alternates: { canonical: "/search" } } : {}) };
 import SearchForm from "@/components/SearchForm";
-import { ChevronLeftIcon, StethoscopeIcon } from "@/components/Icons";
 
 export default function SearchPage() {
   return (
     <>
-      <main className="screen" style={{ paddingTop: 12 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            marginBottom: 10,
-          }}
-        >
-          <Link
-            href="/"
-            aria-label="Back to home"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 44,
-              minHeight: 44,
-            }}
-          >
-            <ChevronLeftIcon size={22} />
-          </Link>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontFamily: "var(--font-heading)",
-              fontWeight: 600,
-              fontSize: 16,
-            }}
-          >
-            <span
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                background: "var(--primary)",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <StethoscopeIcon size={16} />
-            </span>
-            Doct Lookup
-          </span>
-        </div>
+      <main className="screen search-screen">
 
-        <h1 style={{ fontSize: 24, marginBottom: 16 }}>
-          Who are we searching for?
-        </h1>
+        <section className="search-intro" aria-labelledby="search-title">
+          <h1 id="search-title" className="page-heading">
+            Build a precise search
+          </h1>
+          <p className="page-subtitle">
+            Choose insurance details when you have them, or search a doctor by
+            name and verify coverage from the profile.
+          </p>
+        </section>
 
-        <SearchForm />
+        <section className="surface-panel" aria-label="Detailed search form">
+          <SearchForm />
+        </section>
       </main>
-      <footer className="disclaimer">
-        Provider data is from the public NPI registry. ACA Marketplace and
-        Original Medicare coverage checks use real CMS data; other insurers
-        aren't verified.
-      </footer>
     </>
   );
 }

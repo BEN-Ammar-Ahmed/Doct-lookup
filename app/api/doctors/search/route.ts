@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { storedSearch, storedCoordinates, storedZip } from "@/lib/providerStore";
 import { searchNpi, type Doctor } from "@/lib/npi";
 import {
   zipToLatLng,
   latLngToZip,
-  pinFor,
-  milesBetween,
   type LatLng,
 } from "@/lib/geo";
 import { computeCoverage, type InsuranceQuery } from "@/lib/insuranceCheck";
 import type { CoverageDisplay } from "@/lib/coverage";
 import { isValidZip, isValidPlanId, isValidPlanYear } from "@/lib/validation";
-import { isRateLimited, clientKey } from "@/lib/rateLimit";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 function parseInsuranceQuery(sp: URLSearchParams): InsuranceQuery | { error: string } {
   const category = sp.get("category") ?? "none";
@@ -35,9 +34,8 @@ function parseInsuranceQuery(sp: URLSearchParams): InsuranceQuery | { error: str
 }
 
 export async function GET(req: NextRequest) {
-  if (isRateLimited(`search:${clientKey(req)}`)) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-  }
+  const limited = await rateLimitResponse(req, "search");
+  if (limited) return limited;
 
   const sp = req.nextUrl.searchParams;
   const zip = sp.get("zip") ?? "";
@@ -52,12 +50,13 @@ export async function GET(req: NextRequest) {
       ? { lat: parseFloat(latParam), lng: parseFloat(lngParam) }
       : null;
 
+  if (name.length > 100 || specialty.length > 100 || (state && !/^[A-Z]{2}$/.test(state)) || skip > 1000) return NextResponse.json({ error: "invalid_query" }, { status: 400 });
   const insuranceQuery = parseInsuranceQuery(sp);
   if ("error" in insuranceQuery) {
     return NextResponse.json({ error: insuranceQuery.error }, { status: 400 });
   }
 
-  if (area && (Number.isNaN(area.lat) || Number.isNaN(area.lng))) {
+  if (area && (!Number.isFinite(area.lat) || !Number.isFinite(area.lng) || Math.abs(area.lat) > 90 || Math.abs(area.lng) > 180)) {
     return NextResponse.json({ error: "invalid_area" }, { status: 400 });
   }
   if (zip && !isValidZip(zip)) {
@@ -75,7 +74,8 @@ export async function GET(req: NextRequest) {
       const parts = name.trim().split(/\s+/);
       const lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
       const firstName = parts.length > 1 ? parts[0] : "";
-      ({ doctors, hasMore } = await searchNpi({
+      const stored = await storedSearch({ name: name.trim(), state, skip });
+      ({ doctors, hasMore } = stored ?? await searchNpi({
         lastName: `${lastName}*`,
         ...(firstName ? { firstName: `${firstName}*` } : {}),
         ...(state ? { state } : {}),
@@ -87,15 +87,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "area_unresolved" }, { status: 502 });
       }
       center = area;
-      ({ doctors, hasMore } = await searchNpi({
+      const stored = await storedSearch({ zip: resolvedZip, specialty, skip });
+      ({ doctors, hasMore } = stored ?? await searchNpi({
         zip: resolvedZip,
         ...(specialty ? { specialty } : {}),
         skip,
       }));
     } else {
       const [searchResult, geo] = await Promise.all([
-        searchNpi({ zip, ...(specialty ? { specialty } : {}), skip }),
-        zipToLatLng(zip),
+        storedSearch({ zip, specialty, skip }).then(stored => stored ?? searchNpi({ zip, ...(specialty ? { specialty } : {}), skip })),
+        storedZip(zip).then(point => point ?? zipToLatLng(zip)),
       ]);
       doctors = searchResult.doctors;
       hasMore = searchResult.hasMore;
@@ -105,13 +106,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "npi_unavailable" }, { status: 502 });
   }
 
-  if (center) {
-    const c = center;
-    doctors = doctors.map((d) => {
-      const pin = pinFor(d.npi, c);
-      return { ...d, ...pin, distanceMi: milesBetween(c, pin) };
-    });
-  }
+  try { doctors = await storedCoordinates(doctors, center); } catch { /* Provider list stays usable if only location storage fails. */ }
 
   const coverage = await computeCoverage(
     doctors.map((d) => d.npi),
@@ -131,5 +126,5 @@ export async function GET(req: NextRequest) {
     return (a.distanceMi ?? 99) - (b.distanceMi ?? 99);
   });
 
-  return NextResponse.json({ center, doctors: withCoverage, hasMore, skip });
+  return NextResponse.json({ center, doctors: withCoverage, hasMore, skip, nextSkip: skip + 50 });
 }

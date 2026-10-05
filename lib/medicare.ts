@@ -1,4 +1,4 @@
-import type { CoverageDisplay } from "./coverage";
+import { COVERAGE_LABELS, type CoverageDisplay } from "./coverage";
 
 // Real data: CMS's public "Doctors and Clinicians" dataset (Care Compare),
 // which lists every clinician currently enrolled in Original Medicare and
@@ -10,40 +10,31 @@ import type { CoverageDisplay } from "./coverage";
 // being treated as a positive match.
 const CMS_DATASET_ID = "mj5m-pzi6";
 const CMS_QUERY_BASE = `https://data.cms.gov/provider-data/api/1/datastore/query/${CMS_DATASET_ID}/0`;
+const MEDICARE_BATCH_SIZE = 20;
+const MEDICARE_TIMEOUT_MS = 7000;
 
-export type MedicareResult =
+export type MedicareResult = (
   | { status: "assigned" }
   | { status: "maybe" }
   | { status: "no_record" }
-  | { status: "unavailable" };
+  | { status: "unavailable" }) & { sourceUpdatedAt?: string; checkedAt?: string };
 
-const cache = new Map<string, MedicareResult>();
+const cache = new Map<string, { result: MedicareResult; expires: number }>();
 
-export async function checkMedicareAssignment(
-  npis: string[]
-): Promise<Map<string, MedicareResult>> {
-  const unique = [...new Set(npis)];
+async function fetchMedicareChunk(npis: string[]): Promise<Map<string, MedicareResult>> {
   const results = new Map<string, MedicareResult>();
-  const toFetch: string[] = [];
-  for (const npi of unique) {
-    const cached = cache.get(npi);
-    if (cached) results.set(npi, cached);
-    else toFetch.push(npi);
-  }
-  if (toFetch.length === 0) return results;
-
   try {
     const qs = new URLSearchParams({
       "conditions[0][property]": "npi",
       "conditions[0][operator]": "IN",
       "properties[0]": "npi",
       "properties[1]": "ind_assgn",
-      limit: String(toFetch.length * 4),
+      limit: String(npis.length * 4),
     });
-    toFetch.forEach((npi, i) => qs.append(`conditions[0][value][${i}]`, npi));
+    npis.forEach((npi, i) => qs.append(`conditions[0][value][${i}]`, npi));
 
     const res = await fetch(`${CMS_QUERY_BASE}?${qs}`, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(MEDICARE_TIMEOUT_MS),
       cache: "no-store",
       headers: { "User-Agent": "doct-lookup-demo (educational project)" },
     });
@@ -59,7 +50,8 @@ export async function checkMedicareAssignment(
       else if (!current) bestValue.set(row.npi, row.ind_assgn ?? "");
     }
 
-    for (const npi of toFetch) {
+    const checkedAt = new Date().toISOString();
+    for (const npi of npis) {
       const value = bestValue.get(npi);
       const result: MedicareResult =
         value === "Y"
@@ -67,36 +59,59 @@ export async function checkMedicareAssignment(
           : value === "M"
             ? { status: "maybe" }
             : { status: "no_record" };
-      cache.set(npi, result);
+      result.checkedAt = checkedAt;
+      if (cache.size >= 5000) cache.delete(cache.keys().next().value!);
+      cache.set(npi, { result, expires: Date.now() + 3600000 });
       results.set(npi, result);
     }
-  } catch (err) {
-    console.error("Medicare assignment check failed:", err);
+  } catch {
+    console.error("Medicare assignment service unavailable");
     // Don't cache failures — a later retry should get a fresh chance.
-    for (const npi of toFetch) results.set(npi, { status: "unavailable" });
+    for (const npi of npis) results.set(npi, { status: "unavailable" });
   }
+  return results;
+}
+
+export async function checkMedicareAssignment(
+  npis: string[]
+): Promise<Map<string, MedicareResult>> {
+  const unique = [...new Set(npis)];
+  const results = new Map<string, MedicareResult>();
+  const toFetch: string[] = [];
+  for (const npi of unique) {
+    const cached = cache.get(npi);
+    if (cached && cached.expires > Date.now()) results.set(npi, cached.result);
+    else toFetch.push(npi);
+  }
+  if (toFetch.length === 0) return results;
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < toFetch.length; i += MEDICARE_BATCH_SIZE) chunks.push(toFetch.slice(i, i + MEDICARE_BATCH_SIZE));
+  const batches = await Promise.all(chunks.map(fetchMedicareChunk));
+  for (const batch of batches) for (const [npi, result] of batch) results.set(npi, result);
   return results;
 }
 
 const MEDICARE_ADVANTAGE_NOTE =
   "This result applies to Original Medicare assignment. It does not confirm participation in a Medicare Advantage plan.";
-const SOURCE = "CMS Doctors & Clinicians dataset";
+const SOURCE = "Official Medicare data";
 
 export function medicareCoverageDisplay(result: MedicareResult): CoverageDisplay {
-  const checkedAt = new Date().toISOString();
+  const checkedAt = result.checkedAt ?? new Date().toISOString();
   switch (result.status) {
     case "assigned":
       return {
         status: "covered",
-        label: "Accepts the Medicare-approved amount as payment in full",
+        label: COVERAGE_LABELS.medicareAssigned,
         source: SOURCE,
         checkedAt,
+        sourceUpdatedAt: result.sourceUpdatedAt,
         note: MEDICARE_ADVANTAGE_NOTE,
       };
     case "maybe":
       return {
         status: "unknown",
-        label: "May accept Medicare assignment — verify before the visit",
+        label: COVERAGE_LABELS.medicareMaybe,
         source: SOURCE,
         checkedAt,
         note: MEDICARE_ADVANTAGE_NOTE,
@@ -104,7 +119,7 @@ export function medicareCoverageDisplay(result: MedicareResult): CoverageDisplay
     case "no_record":
       return {
         status: "unknown",
-        label: "Unable to verify Original Medicare assignment",
+        label: COVERAGE_LABELS.medicareUnknown,
         source: SOURCE,
         checkedAt,
         note: MEDICARE_ADVANTAGE_NOTE,
@@ -112,7 +127,7 @@ export function medicareCoverageDisplay(result: MedicareResult): CoverageDisplay
     case "unavailable":
       return {
         status: "unavailable",
-        label: "Verification temporarily unavailable",
+        label: COVERAGE_LABELS.unavailable,
         source: SOURCE,
         checkedAt,
       };

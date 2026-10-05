@@ -1,20 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import localFont from "next/font/local";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
+const inter = localFont({ src: [
+  { path: "../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2", weight: "400" },
+  { path: "../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2", weight: "600" },
+], variable: "--font-body", display: "swap" });
+const fraunces = localFont({ src: "../node_modules/@fontsource/fraunces/files/fraunces-latin-600-normal.woff2", variable: "--font-display", display: "swap" });
 
+const site = process.env.SITE_URL;
+const title = "InsureBased — Find Doctors by Insurance and Location";
+const description = "Find nearby doctors and review available insurance coverage information using trustworthy public healthcare data.";
 export const metadata: Metadata = {
-  title: "Doct Lookup — find doctors who take your insurance",
-  description:
-    "Pick your health insurance, enter your ZIP code, and see nearby doctors who accept it.",
+  ...(site ? { metadataBase: new URL(site) } : {}),
+  title: { default: title, template: "%s | InsureBased" },
+  description,
+  icons: { icon: [{ url: "/favicon.ico", sizes: "16x16 32x32 48x48" }], apple: "/apple-touch-icon.png" },
+  manifest: "/manifest.webmanifest",
+  openGraph: { type: "website", siteName: "InsureBased", title, description, images: [{ url: "/brand/insurebased-social.png", width: 1200, height: 630, alt: "InsureBased — Find doctors. Understand coverage." }] },
+  twitter: { card: "summary_large_image", title, description, images: ["/brand/insurebased-social.png"] },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0F6E8C",
+  themeColor: "#173e35",
 };
 
 export default function RootLayout({
@@ -23,10 +35,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
       <body>
-        <div className="phone-shell">{children}</div>
-        <SpeedInsights />
+        <a className="skip-link" href="#page-content">Skip to content</a>
+        <SiteHeader />
+        <div id="page-content" className="site-content" tabIndex={-1}>{children}</div>
+        <SiteFooter />
       </body>
     </html>
   );

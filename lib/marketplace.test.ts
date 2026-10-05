@@ -17,7 +17,7 @@ describe("checkMarketplaceCoverage / marketplaceCoverageDisplay", () => {
     process.env.CMS_MARKETPLACE_API_KEY = "test-key";
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ providers: [{ npi: "1111111111", coverage: "Covered" }] }),
+      json: async () => ({ providers: [{ npi: "1111111111", plan_id: "PLAN123", coverage: "Covered" }] }),
     }) as unknown as typeof fetch;
 
     const results = await checkMarketplaceCoverage(["1111111111"], "PLAN123", 2026);
@@ -31,7 +31,7 @@ describe("checkMarketplaceCoverage / marketplaceCoverageDisplay", () => {
     process.env.CMS_MARKETPLACE_API_KEY = "test-key";
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ providers: [{ npi: "2222222222", coverage: "NotCovered" }] }),
+      json: async () => ({ providers: [{ npi: "2222222222", plan_id: "PLAN123", coverage: "NotCovered" }] }),
     }) as unknown as typeof fetch;
 
     const results = await checkMarketplaceCoverage(["2222222222"], "PLAN123", 2026);
@@ -44,7 +44,7 @@ describe("checkMarketplaceCoverage / marketplaceCoverageDisplay", () => {
     process.env.CMS_MARKETPLACE_API_KEY = "test-key";
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ providers: [{ npi: "3333333333", coverage: "DataNotProvided" }] }),
+      json: async () => ({ providers: [{ npi: "3333333333", plan_id: "PLAN123", coverage: "DataNotProvided" }] }),
     }) as unknown as typeof fetch;
 
     const results = await checkMarketplaceCoverage(["3333333333"], "PLAN123", 2026);

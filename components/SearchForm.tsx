@@ -19,7 +19,7 @@ const PLAN_YEARS = [CURRENT_YEAR, CURRENT_YEAR - 1];
 export default function SearchForm() {
   const router = useRouter();
   const [mode, setMode] = useState<"insurance" | "name">("insurance");
-  const [category, setCategory] = useState<Category>("marketplace");
+  const [category, setCategory] = useState<Category>("medicare");
   const [zip, setZip] = useState("");
   const [zipErr, setZipErr] = useState("");
   const [specialty, setSpecialty] = useState("");
@@ -38,11 +38,13 @@ export default function SearchForm() {
   useEffect(() => {
     setPlans(null);
     setPlanId("");
-    setPlansError("");
+    setPlansError(""); setPlansLoading(false);
     if (category !== "marketplace" || !/^\d{5}$/.test(zip)) return;
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
     setPlansLoading(true);
-    fetch(`/api/insurance/marketplace/plans?zip=${zip}&year=${planYear}`)
+    fetch(`/api/insurance/marketplace/plans?zip=${zip}&year=${planYear}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status));
         return r.json();
@@ -61,10 +63,12 @@ export default function SearchForm() {
         );
       })
       .finally(() => {
+        window.clearTimeout(timeout);
         if (!cancelled) setPlansLoading(false);
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout); controller.abort();
     };
   }, [category, zip, planYear]);
 
@@ -117,7 +121,7 @@ export default function SearchForm() {
   }
 
   const categoryPicker = (
-    <>
+    <div className="form-group">
       <label className="lbl" htmlFor="cat">
         Insurance type
       </label>
@@ -125,6 +129,7 @@ export default function SearchForm() {
         <ShieldCheckIcon size={18} className="fld-icon" />
         <select
           id="cat"
+          name="category"
           value={category}
           onChange={(e) => setCategory(e.target.value as Category)}
         >
@@ -135,8 +140,8 @@ export default function SearchForm() {
       </div>
 
       {category === "medicare" && (
-        <p className="muted" style={{ fontSize: 12.5, margin: "6px 2px 0" }}>
-          Checked against real CMS Medicare enrollment data.
+        <p className="form-note">
+          Checked against official Medicare enrollment data.
         </p>
       )}
 
@@ -149,6 +154,7 @@ export default function SearchForm() {
           <div className="fld">
             <input
               id="otherIns"
+              name="otherInsurer"
               list="known-insurers"
               placeholder="e.g. Aetna"
               value={otherInsurer}
@@ -160,23 +166,24 @@ export default function SearchForm() {
               <option key={i.name} value={i.name} />
             ))}
           </datalist>
-          <p className="muted" style={{ fontSize: 12.5, margin: "6px 2px 0" }}>
+          <p className="form-note">
             This site has no free, verified data source for this category yet
-            — results will say "not verified" rather than guess.
+            — results will say &quot;not verified&quot; rather than guess.
           </p>
         </>
       )}
-    </>
+    </div>
   );
 
   const marketplacePicker = category === "marketplace" && (
-    <>
+    <div className="form-group">
       <label className="lbl" htmlFor="planYear">
         Plan year
       </label>
       <div className="fld">
         <select
           id="planYear"
+          name="planYear"
           value={planYear}
           onChange={(e) => setPlanYear(parseInt(e.target.value, 10))}
         >
@@ -194,6 +201,7 @@ export default function SearchForm() {
       <div className="fld">
         <select
           id="plan"
+          name="planId"
           value={planId}
           onChange={(e) => setPlanId(e.target.value)}
           disabled={!plans || plans.length === 0}
@@ -214,12 +222,12 @@ export default function SearchForm() {
       </div>
       {plansError && <p className="err-text">{plansError}</p>}
       {planErr && <p className="err-text">{planErr}</p>}
-    </>
+    </div>
   );
 
   return (
-    <form onSubmit={submit}>
-      <div className="pill-toggle" role="tablist" aria-label="Search mode">
+    <form noValidate onSubmit={submit} className="search-form">
+      <div className="pill-toggle" role="group" aria-label="Search mode">
         <button
           type="button"
           aria-pressed={mode === "insurance"}
@@ -240,105 +248,122 @@ export default function SearchForm() {
         <>
           {categoryPicker}
 
-          <label className="lbl" htmlFor="zip">
-            ZIP code
-          </label>
-          <div className="fld">
-            <MapPinIcon size={18} className="fld-icon" />
-            <input
-              id="zip"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={5}
-              placeholder="60614"
-              value={zip}
-              onChange={(e) => {
-                setZip(e.target.value.replace(/\D/g, ""));
-                setZipErr("");
-              }}
-              aria-invalid={!!zipErr}
-            />
+          <div className="form-group">
+            <label className="lbl" htmlFor="zip">
+              ZIP code
+            </label>
+            <div className="fld">
+              <MapPinIcon size={18} className="fld-icon" />
+              <input
+                id="zip"
+                name="zip"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={5}
+                placeholder="60614"
+                value={zip}
+                onChange={(e) => {
+                  setZip(e.target.value.replace(/\D/g, ""));
+                  setZipErr("");
+                }}
+                aria-invalid={!!zipErr}
+                aria-describedby={zipErr ? "zip-error" : undefined}
+              />
+            </div>
+            {zipErr && <p id="zip-error" role="alert" className="err-text">{zipErr}</p>}
           </div>
-          {zipErr && <p className="err-text">{zipErr}</p>}
 
           {marketplacePicker}
 
-          <label className="lbl" htmlFor="spec">
-            Specialty <span style={{ fontWeight: 400 }}>(optional)</span>
-          </label>
-          <div className="fld">
-            <StethoscopeIcon size={18} className="fld-icon" />
-            <select
-              id="spec"
-              value={specialty}
-              onChange={(e) => setSpecialty(e.target.value)}
-            >
-              <option value="">Any specialty</option>
-              {SPECIALTIES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          <div className="form-group">
+            <label className="lbl" htmlFor="spec">
+              Specialty <span style={{ fontWeight: 400 }}>(optional)</span>
+            </label>
+            <div className="fld">
+              <StethoscopeIcon size={18} className="fld-icon" />
+              <select
+                id="spec"
+                name="specialty"
+                value={specialty}
+                onChange={(e) => setSpecialty(e.target.value)}
+              >
+                <option value="">Any specialty</option>
+                {SPECIALTIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </>
       ) : (
         <>
-          <label className="lbl" htmlFor="dname">
-            Doctor's name
-          </label>
-          <div className="fld">
-            <SearchIcon size={18} className="fld-icon" />
-            <input
-              id="dname"
-              placeholder="e.g. Sarah Mitchell or just Mitchell"
-              value={docName}
-              onChange={(e) => {
-                setDocName(e.target.value);
-                setNameErr("");
-              }}
-              aria-invalid={!!nameErr}
-            />
+          <div className="form-group">
+            <label className="lbl" htmlFor="dname">
+              Doctor name
+            </label>
+            <div className="fld">
+              <SearchIcon size={18} className="fld-icon" />
+              <input
+                id="dname"
+                name="doctorName"
+                placeholder="e.g. Bozza or a last name"
+                value={docName}
+                onChange={(e) => {
+                  setDocName(e.target.value);
+                  setNameErr("");
+                }}
+                aria-invalid={!!nameErr}
+                aria-describedby={nameErr ? "name-error" : undefined}
+              />
+            </div>
+            {nameErr && <p id="name-error" role="alert" className="err-text">{nameErr}</p>}
           </div>
-          {nameErr && <p className="err-text">{nameErr}</p>}
 
-          <label className="lbl" htmlFor="dstate">
-            State <span style={{ fontWeight: 400 }}>(optional)</span>
-          </label>
-          <div className="fld">
-            <MapPinIcon size={18} className="fld-icon" />
-            <select
-              id="dstate"
-              value={docState}
-              onChange={(e) => setDocState(e.target.value)}
-            >
-              <option value="">Any state</option>
-              {US_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          <div className="form-group">
+            <label className="lbl" htmlFor="dstate">
+              State <span style={{ fontWeight: 400 }}>(optional)</span>
+            </label>
+            <div className="fld">
+              <MapPinIcon size={18} className="fld-icon" />
+              <select
+                id="dstate"
+                name="doctorState"
+                value={docState}
+                onChange={(e) => setDocState(e.target.value)}
+              >
+                <option value="">Any state</option>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {categoryPicker}
 
           {category === "marketplace" && (
             <>
-              <label className="lbl" htmlFor="zip2">
-                ZIP code <span style={{ fontWeight: 400 }}>(for plan lookup)</span>
-              </label>
-              <div className="fld">
-                <MapPinIcon size={18} className="fld-icon" />
-                <input
-                  id="zip2"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={5}
-                  placeholder="60614"
-                  value={zip}
-                  onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))}
-                />
+              <div className="form-group">
+                <label className="lbl" htmlFor="zip2">
+                  ZIP code <span style={{ fontWeight: 400 }}>(for plan lookup)</span>
+                </label>
+                <div className="fld">
+                  <MapPinIcon size={18} className="fld-icon" />
+                  <input
+                    id="zip2"
+                    name="planZip"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={5}
+                    placeholder="60614"
+                    value={zip}
+                    onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
               </div>
               {marketplacePicker}
             </>
@@ -346,7 +371,7 @@ export default function SearchForm() {
         </>
       )}
 
-      <button type="submit" className="btn-primary" style={{ marginTop: 22 }}>
+      <button type="submit" className="btn-primary search-submit">
         <SearchIcon size={18} />
         {mode === "insurance" ? "Find doctors" : "Look up doctor"}
       </button>
