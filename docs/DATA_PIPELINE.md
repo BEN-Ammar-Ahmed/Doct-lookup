@@ -28,6 +28,7 @@ Use a separate ingestion role, not a public API key.
 
     npm run ingest -- nppes official-nppes.csv YYYY-MM-DD --taxonomy official-taxonomy.csv --dry-run
     npm run ingest -- nppes official-nppes.csv YYYY-MM-DD --taxonomy official-taxonomy.csv --replace
+    npm run ingest -- nppes-locations pl_pfile.csv YYYY-MM-DD
     npm run ingest -- medicare official-cms.csv YYYY-MM-DD --replace
     npm run ingest -- zcta normalized-zcta.csv YYYY-MM-DD
     npm run ingest -- locations normalized-census-matches.csv YYYY-MM-DD
@@ -39,6 +40,7 @@ require full replacement or a separate audited pipeline; do not assume an
 incremental import removes old records.
 
 - NPPES uses original CMS headers; only individuals are included.
+- NPPES practice locations accepts the official `pl_pfile_*.csv` reference file and attaches non-primary locations to matching provider payloads. Run it after the main NPPES import.
 - Taxonomy supports Code, Display Name, Classification, Specialization.
   Without taxonomy, code labels appear without invented specialties.
 - Medicare: NPI (or npi), ind_assgn. Duplicate office rows aggregate Y stronger
@@ -52,8 +54,7 @@ incremental import removes old records.
 Rows stream in batches of 500 into a private temporary staging table; publication
 is transactional. Failed parsing does not publish partial records. Verify disk,
 staging space, source schema, dates, and deactivations before nationwide use.
-Additional NPPES practice-location reference files are not yet ingested; live
-provider records expose additional locations where available.
+The NPPES Practice Location Reference File can now be ingested with `nppes-locations`; it adds non-primary locations to matching providers. Address coordinates are still a separate preprocessing/import step so the runtime does not bulk-geocode every search.
 
 ## Deployment
 

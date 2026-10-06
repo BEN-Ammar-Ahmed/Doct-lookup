@@ -1,12 +1,12 @@
 import { createReadStream, readFileSync, existsSync } from "node:fs";
 import { parse } from "csv-parse";
 import { Pool } from "pg";
-import { nppesCsvProvider } from "../lib/ingestion";
+import { nppesCsvProvider, nppesPracticeLocationCsv } from "../lib/ingestion";
 
 const [mode, input, sourceDate, ...args] = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
-if (!["nppes", "medicare", "zcta", "locations"].includes(mode) || !input || !/^\d{4}-\d{2}-\d{2}$/.test(sourceDate ?? "") || Number.isNaN(Date.parse(sourceDate))) {
-  console.error("Usage: npm run ingest -- <nppes|medicare|zcta|locations> <official.csv> <source-date YYYY-MM-DD> [--taxonomy taxonomy.csv] [--dry-run] [--replace]");
+if (!["nppes", "nppes-locations", "medicare", "zcta", "locations"].includes(mode) || !input || !/^\d{4}-\d{2}-\d{2}$/.test(sourceDate ?? "") || Number.isNaN(Date.parse(sourceDate))) {
+  console.error("Usage: npm run ingest -- <nppes|nppes-locations|medicare|zcta|locations> <official.csv> <source-date YYYY-MM-DD> [--taxonomy taxonomy.csv] [--dry-run] [--replace]");
   process.exit(1);
 }
 if (!existsSync(input)) { console.error("Input file does not exist."); process.exit(1); }
@@ -44,6 +44,8 @@ try {
     let record: unknown;
     if (mode === "nppes") {
       record = nppesCsvProvider(row, taxonomy);
+    } else if (mode === "nppes-locations") {
+      record = nppesPracticeLocationCsv(row);
     } else if (mode === "medicare") {
       const npi = row.NPI ?? row.npi;
       if (/^\d{10}$/.test(npi ?? "")) record = { npi, assignment: ["Y", "M"].includes(row.ind_assgn) ? row.ind_assgn : "" };
@@ -65,6 +67,20 @@ try {
     if (mode === "nppes") {
       await client.query("insert into provider_data.providers(npi,name,zip,state,specialty,payload,source_date) select data->>'npi',data->>'name',data->>'zip',data->>'state',data->>'specialty',data,$1::date from (select distinct on(data->>'npi') data from ingest_stage order by data->>'npi',id desc) s on conflict(npi) do update set name=excluded.name,zip=excluded.zip,state=excluded.state,specialty=excluded.specialty,payload=excluded.payload,source_date=excluded.source_date,imported_at=now()", [sourceDate]);
       if (args.includes("--replace")) await client.query("delete from provider_data.providers p where not exists(select 1 from ingest_stage s where s.data->>'npi'=p.npi)");
+    } else if (mode === "nppes-locations") {
+      await client.query(`
+        with secondary as (
+          select data->>'npi' as npi, jsonb_agg(distinct data->'location') as locations
+          from ingest_stage
+          group by data->>'npi'
+        )
+        update provider_data.providers p
+        set payload = jsonb_set(p.payload, '{practiceLocations}', secondary.locations, true),
+            source_date = greatest(p.source_date, $1::date),
+            imported_at = now()
+        from secondary
+        where p.npi = secondary.npi
+      `, [sourceDate]);
     } else if (mode === "medicare") {
       await client.query("insert into provider_data.medicare(npi,assignment,source_date) select data->>'npi',case when bool_or(data->>'assignment'='Y') then 'Y' when bool_or(data->>'assignment'='M') then 'M' else '' end,$1::date from ingest_stage group by data->>'npi' on conflict(npi) do update set assignment=excluded.assignment,source_date=excluded.source_date,imported_at=now()", [sourceDate]);
       if (args.includes("--replace")) await client.query("delete from provider_data.medicare p where not exists(select 1 from ingest_stage s where s.data->>'npi'=p.npi)");

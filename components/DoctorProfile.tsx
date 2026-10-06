@@ -6,6 +6,7 @@ import type { Doctor } from "@/lib/npi";
 import type { CoverageDisplay } from "@/lib/coverage";
 import { homepageFor } from "@/lib/insurers";
 import { initialsOf } from "@/lib/options";
+import { locationPrecisionLabel, uniquePracticeLocations } from "@/lib/maps";
 import LazyResultsMap from "./LazyResultsMap";
 import {
   ChevronLeftIcon,
@@ -15,6 +16,7 @@ import {
   RefreshIcon,
 } from "./Icons";
 import { CoverageBadge, CoverageCaption } from "./CoverageBadge";
+import { DirectionsChoices } from "./DirectionsLinks";
 
 type Props = {
   npi: string;
@@ -67,6 +69,7 @@ export default function DoctorProfile({
   useEffect(load, [load]);
 
   const coverage = doctor?.coverage;
+  const practiceLocations = doctor ? uniquePracticeLocations(doctor) : [];
   const directoryUrl = insurerName ? homepageFor(insurerName) : null;
 
   const findOthersHref = (() => {
@@ -140,26 +143,21 @@ export default function DoctorProfile({
             </a>
           )}
 
-          <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(
-              `${doctor.address1}, ${doctor.city}, ${doctor.state} ${doctor.zip}`
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-            className="card pressable detail-link-card"
-          >
+          <div className="card detail-link-card profile-location-card">
             <MapPinIcon size={18} className="fld-icon" />
             <div className="doctor-card-text">
               <p className="detail-link-title">{doctor.address1}</p>
               <p className="detail-link-meta">
                 {doctor.city}, {doctor.state} {doctor.zip}
               </p>
+              <p className="location-confidence">{locationPrecisionLabel(doctor)}</p>
+              <DirectionsChoices doctor={doctor} />
             </div>
-          </a>
+          </div>
           </div>
 
-          <section className="card"><h2 className="profile-card-title">Public record</h2><p>NPI: {doctor.npi}</p><p className="profile-note">NPPES / NPI Registry{doctor.sourceUpdatedAt ? " · Record updated " + doctor.sourceUpdatedAt : ""}</p><p className="profile-note">Address matches are approximate and may not identify a building entrance. Confirm the office before traveling.</p><div className="doctor-actions"><a href={"https://npiregistry.cms.hhs.gov/provider-view/" + doctor.npi} target="_blank" rel="noreferrer">View source record</a><Link href={"/report?npi=" + doctor.npi}>Report incorrect info</Link></div></section>
-          {doctor.practiceLocations && doctor.practiceLocations.length > 1 && <section className="card"><h2 className="profile-card-title">Practice locations on file</h2>{doctor.practiceLocations.map((location, index) => <p key={index}>{location.address1}, {location.city}, {location.state} {location.zip}{location.phone && <a className="text-action-link" href={"tel:" + location.phone.replace(/[^\d+]/g, "")}>Call this office</a>}</p>)}</section>}
+          <section className="card"><h2 className="profile-card-title">Public record</h2><p>NPI: {doctor.npi}</p><p className="profile-note">NPPES / NPI Registry{doctor.sourceUpdatedAt ? " · Record updated " + doctor.sourceUpdatedAt : ""}</p><p className="profile-note">Provider records are official public data, but practices can change after a record is submitted. Confirm the office and exact insurance plan before a visit.</p><div className="doctor-actions"><a href={"https://npiregistry.cms.hhs.gov/provider-view/" + doctor.npi} target="_blank" rel="noreferrer">View source record</a><Link href={"/report?npi=" + doctor.npi}>Report incorrect info</Link></div></section>
+          {practiceLocations.length > 1 && <section className="card"><h2 className="profile-card-title">Practice locations on file</h2><p className="profile-note">These locations come from NPPES public records and may have different phones or schedules.</p><div className="practice-location-list">{practiceLocations.map((location, index) => <div className="practice-location-item" key={`${location.address1}-${index}`}><p>{location.address1}, {location.city}, {location.state} {location.zip}</p><div className="doctor-actions">{location.phone && <a href={"tel:" + location.phone.replace(/[^\d+]/g, "")}>Call this office</a>}<DirectionsChoices doctor={{ ...location, lat: null, lng: null }} /></div></div>)}</div></section>}
           {!coverage && <section className="card"><h2 className="profile-card-title">Insurance participation not verified</h2><p>Confirm your exact plan and service with the office and insurer.</p></section>}
           {coverage && (
             <div className="card coverage-card">

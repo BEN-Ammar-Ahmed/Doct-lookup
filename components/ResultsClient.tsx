@@ -73,7 +73,7 @@ export default function ResultsClient() {
       if (!response.ok) throw new Error();
       const { results } = await response.json();
       if (id !== generation.current) return;
-      const points = new Map<string, {lat:number;lng:number;distanceMi:number|null}>(results.map((p: {npi:string;lat:number;lng:number;distanceMi:number|null}) => [p.npi, p]));
+      const points = new Map<string, {lat:number;lng:number;distanceMi:number|null;locationPrecision?:"address";locationSource?:"census"}>(results.map((p: {npi:string;lat:number;lng:number;distanceMi:number|null;locationPrecision?:"address";locationSource?:"census"}) => [p.npi, p]));
       setData(previous => previous ? { ...previous, doctors: previous.doctors.map(d => { const point = points.get(d.npi); return point ? { ...d, ...point, locationApproximate: false } : d; }) } : previous);
       if (!results.length) setPinError("No address match was found. Use the listed address for directions.");
     } catch { setPinError("Address matching is unavailable. The provider list is still available."); }
@@ -110,7 +110,7 @@ export default function ResultsClient() {
         {data.hasMore && <button className="btn-primary" disabled={loadingMore} onClick={() => void fetchData(data.nextSkip ?? data.doctors.length, area)}>{loadingMore ? "Loading…" : "Load more doctors"}</button>}
       </section>
       <aside className="results-map-panel" aria-label="Provider map">
-        {data.doctors.some(d => d.lat === null) && <><p className="coverage-caption">Unmatched offices are listed without pins. Matches are approximate.</p><button type="button" className="text-action-link" disabled={locatingPins} onClick={() => void locatePins()}>{locatingPins ? "Matching addresses…" : "Match up to 3 office addresses"}</button></>}
+        {data.doctors.some(d => d.lat === null) && <><p className="coverage-caption">Unmatched offices stay in the list without a pin. Address-level pins are geocoded from the public practice address and may not mark a building entrance.</p><button type="button" className="text-action-link" disabled={locatingPins} onClick={() => void locatePins()}>{locatingPins ? "Matching addresses…" : "Match 3 more office addresses"}</button></>}
         {pinError && <p role="status" className="coverage-caption">{pinError}</p>}
         {data.center ? <LazyResultsMap center={data.center} doctors={filtered} query={detailQuery} onSearchArea={sp.get("name") ? undefined : (lat, lng) => { const next = { lat, lng }; setArea(next); void fetchData(0, next); }} /> : <div className="card"><h2>Map unavailable</h2><p>Provider addresses remain available in the list.</p></div>}
       </aside>

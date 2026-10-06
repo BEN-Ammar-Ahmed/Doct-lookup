@@ -38,11 +38,11 @@ export async function storedProvider(npi: string): Promise<Doctor | null | undef
 export async function storedCoordinates<T extends Doctor>(doctors: T[], center: LatLng | null): Promise<T[]> {
   const db = providerPool(); if (!db || !doctors.length) return doctors;
   const keys = doctors.map(d => addressKey(providerFullAddress(d)));
-  const { rows } = await db.query<{ address_key: string; lat: number; lng: number }>("select address_key, lat, lng from provider_data.locations where address_key = any($1::text[])", [keys]);
+  const { rows } = await db.query<{ address_key: string; lat: number; lng: number; quality: string }>("select address_key, lat, lng, quality from provider_data.locations where address_key = any($1::text[])", [keys]);
   const byAddress = new Map(rows.map(row => [row.address_key, row]));
   return doctors.map((d, i) => {
     const point = byAddress.get(keys[i]);
-    return point ? { ...d, lat: point.lat, lng: point.lng, locationApproximate: false, distanceMi: center ? milesBetween(center, point) : null } : d;
+    return point ? { ...d, lat: point.lat, lng: point.lng, locationApproximate: false, locationPrecision: "address" as const, locationSource: "stored" as const, distanceMi: center ? milesBetween(center, point) : null } : d;
   });
 }
 export async function storedZip(zip: string): Promise<LatLng | null> {

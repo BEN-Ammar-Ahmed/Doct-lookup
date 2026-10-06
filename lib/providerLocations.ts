@@ -32,6 +32,8 @@ export async function geocodeProviderLocations<T extends Doctor>(
         lng: coords.lng,
         distanceMi: center ? milesBetween(center, coords) : null,
         locationApproximate: false,
+        locationPrecision: "address" as const,
+        locationSource: "census" as const,
       };
     })
   );

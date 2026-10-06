@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
         lat: coords.lat,
         lng: coords.lng,
         distanceMi: center ? milesBetween(center, coords) : null,
+        locationPrecision: "address" as const,
+        locationSource: "census" as const,
       };
     })
   );

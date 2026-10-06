@@ -237,3 +237,38 @@ a, button { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Provider map + directions refinements */
+.doctor-card-heading-row { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.location-chip { flex-shrink: 0; display: inline-flex; align-items: center; min-height: 26px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; line-height: 1; background: var(--surface); }
+.location-chip-strong { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 32%, var(--line)); background: var(--primary-tint); }
+.location-confidence { margin: -2px 0 10px; color: var(--muted); font-size: 12px; }
+.doctor-actions a svg, .map-selected-actions a svg { flex-shrink: 0; }
+.doctor-actions a { gap: 5px; }
+.directions-choices { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.directions-choices .btn-primary, .directions-choices .btn-secondary { min-height: 44px; padding: 10px 14px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn-secondary { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius-sm); font-weight: 600; }
+.profile-location-card { align-items: flex-start; }
+.practice-location-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.practice-location-item { border-top: 1px solid var(--line); padding-top: 14px; }
+.practice-location-item:first-child { border-top: 0; padding-top: 0; }
+.practice-location-item > p { margin: 0; }
+.map-provider-pin.is-approximate { background: var(--surface); border: 3px dashed var(--pin-color); box-shadow: 0 1px 5px #0003; }
+.map-provider-pin.is-approximate .map-provider-pin-core { width: 8px; height: 8px; border-radius: 50%; background: var(--pin-color); display: block; margin: 4px auto 0; }
+.map-provider-pin.is-selected.is-approximate .map-provider-pin-core { width: 13px; height: 13px; margin-top: 8px; }
+.map-legend { position: absolute; top: 12px; right: 12px; z-index: 500; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: color-mix(in srgb, var(--surface) 94%, transparent); font-size: 11px; color: var(--muted); }
+.map-legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.map-legend-pin { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); border: 2px solid white; box-shadow: 0 0 0 1px var(--line); }
+.map-legend-pin-approx { background: var(--surface); border: 2px dashed var(--primary); box-shadow: none; }
+.map-selected-provider { align-items: flex-start; }
+.map-selected-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+.map-selected-actions a { min-height: 40px; display: inline-flex; align-items: center; gap: 5px; text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+@media (max-width: 767px) {
+  .doctor-card-heading-row { display: block; }
+  .location-chip { margin-bottom: 7px; }
+  .map-legend { top: auto; bottom: 96px; right: 10px; }
+  .map-selected-provider { bottom: 94px; }
+  .map-selected-provider + * { margin-top: 0; }
+  .directions-choices { display: grid; grid-template-columns: 1fr; }
+  .directions-choices .btn-primary, .directions-choices .btn-secondary { width: 100%; }
+}

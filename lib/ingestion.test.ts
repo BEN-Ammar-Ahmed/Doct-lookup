@@ -19,3 +19,21 @@ describe("official file adapters", () => {
     expect(bestAssignment(undefined, "unexpected")).toBe("");
   });
 });
+
+describe("NPPES practice location reference file", () => {
+  it("normalizes a secondary practice location row", async () => {
+    const { nppesPracticeLocationCsv } = await import("./ingestion");
+    const value = nppesPracticeLocationCsv({
+      NPI: "1234567890",
+      "Provider Secondary Practice Location Address- Address Line 1": "500 N Main St Ste 2",
+      "Provider Secondary Practice Location Address - City Name": "Fort Myers",
+      "Provider Secondary Practice Location Address - State Name": "FL",
+      "Provider Secondary Practice Location Address - Postal Code": "339011234",
+      "Provider Secondary Practice Location Address - Telephone Number": "2395550100",
+    });
+    expect(value).toEqual({
+      npi: "1234567890",
+      location: { address1: "500 N Main St Ste 2", city: "Fort Myers", state: "FL", zip: "33901", phone: "2395550100" },
+    });
+  });
+});

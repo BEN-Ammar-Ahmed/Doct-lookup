@@ -11,6 +11,8 @@ export type Doctor = {
   lng: number | null;
   distanceMi: number | null;
   locationApproximate: boolean;
+  locationPrecision?: "address" | "zip" | "unknown";
+  locationSource?: "nppes" | "census" | "stored" | "zip";
   sourceUpdatedAt?: string;
   addressKind?: "practice" | "mailing";
   practiceLocations?: { address1: string; city: string; state: string; zip: string; phone: string | null }[];
@@ -87,6 +89,8 @@ export function normalizeNpiResult(raw: any): Doctor | null {
     lng: null,
     distanceMi: null,
     locationApproximate: true,
+    locationPrecision: "unknown",
+    locationSource: "nppes",
     addressKind: addr.address_purpose === "LOCATION" ? "practice" : "mailing",
     sourceUpdatedAt: typeof basic.last_updated === "string" ? basic.last_updated : undefined,
     practiceLocations: [...addresses.filter(a => a.address_purpose === "LOCATION"), ...(raw.practiceLocations ?? [])].map(a => ({ address1: titleCase(a.address_1 ?? ""), city: titleCase(a.city ?? ""), state: a.state ?? "", zip: String(a.postal_code ?? "").slice(0, 5), phone: a.telephone_number ?? null })),
